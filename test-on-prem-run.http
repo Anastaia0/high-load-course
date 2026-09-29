@@ -4,13 +4,13 @@ POST http://77.234.215.138:34321/run
 Content-Type: application/json
 
 {
-  "serviceName": "{{serviceName}}",
-  "token": "{{token}}",
-  "branch": "main",
-  "accounts": "acc-12,acc-20",
+  "serviceName": "glekler_02",
+  "token": "qYwFSEDHU52V3ky0",
+  "branch": "case-2",
+  "accounts": "acc5",
   "ratePerSecond": 2,
-  "testCount": 10,
-  "processingTimeMillis": 80000,
+  "testCount": 100,
+  "processingTimeMillis": 60000,
   "onPremises": true
 }
 
