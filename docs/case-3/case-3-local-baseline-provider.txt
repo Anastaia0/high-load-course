@@ -1,5 +1,0 @@
-external_sys_duration_count{service="glekler_02",accountName="acc-5",outcome="SUCCESS",} 500.0
-external_sys_duration_sum{service="glekler_02",accountName="acc-5",outcome="SUCCESS",} 2473357.0
-payment_finished_total{failReason="",outcome="SUCCESS",service="glekler_02",} 105.0
-payment_finished_total{failReason="TIMEOUT",outcome="FAIL",service="glekler_02",} 1.0
-payment_finished_total{failReason="CLIENT_TIMEOUT",outcome="FAIL",service="glekler_02",} 394.0
