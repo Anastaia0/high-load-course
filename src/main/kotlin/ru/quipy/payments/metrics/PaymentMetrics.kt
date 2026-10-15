@@ -22,7 +22,12 @@ class PaymentMetrics(
 
 class AccountPaymentMetrics(registry: MeterRegistry, serviceName: String, accountName: String) {
     private val submitted = Counter.builder("shop.payment.submitted")
-        .description("Outbound payment attempts started after acquiring concurrency and rate permits.")
+        .description("Payments sent to the provider, including individual entries of bulk requests.")
+        .tags("service", serviceName, "account", accountName)
+        .register(registry)
+
+    private val providerRequests = Counter.builder("shop.payment.provider.requests")
+        .description("HTTP requests to the provider; one bulk request can contain several payments.")
         .tags("service", serviceName, "account", accountName)
         .register(registry)
 
@@ -33,7 +38,9 @@ class AccountPaymentMetrics(registry: MeterRegistry, serviceName: String, accoun
             .register(registry)
     }
 
-    fun recordSubmitted() = submitted.increment()
+    fun recordSubmitted(count: Int = 1) = submitted.increment(count.toDouble())
+
+    fun recordProviderRequest() = providerRequests.increment()
 
     fun recordCompleted(result: PaymentResult) = completed.getValue(result).increment()
 }

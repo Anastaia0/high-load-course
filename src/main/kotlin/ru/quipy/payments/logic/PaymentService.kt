@@ -19,12 +19,21 @@ interface PaymentService {
 interface PaymentExternalSystemAdapter {
     fun performPaymentAsync(paymentId: UUID, amount: Int, paymentStartedAt: Long, deadline: Long)
 
+    fun performPaymentsAsync(payments: List<PaymentToProcess>)
+
     fun name(): String
 
     fun price(): Int
 
     fun isEnabled(): Boolean
 }
+
+data class PaymentToProcess(
+    val paymentId: UUID,
+    val amount: Int,
+    val paymentStartedAt: Long,
+    val deadline: Long,
+)
 
 /**
  * Describes properties of payment-provider accounts.
@@ -48,3 +57,13 @@ class ExternalSysResponse(
     val result: Boolean,
     val message: String? = null,
 )
+
+data class ExternalSysPaymentRequest(val transactionId: String, val paymentId: String, val amount: Int)
+
+data class ExternalSysBulkRequest(
+    val serviceName: String,
+    val accountName: String,
+    val requests: List<ExternalSysPaymentRequest>,
+)
+
+data class ExternalSysBulkResponse(val responses: List<ExternalSysResponse>)

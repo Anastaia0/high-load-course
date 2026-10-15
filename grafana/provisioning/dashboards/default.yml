@@ -4,5 +4,7 @@ providers:
   - name: Default # A uniquely identifiable name for the provider
     folder: bombardier # The folder where to place the dashboards
     type: file
+    # Poll Docker bind mounts: filesystem watch events may not reach Grafana.
+    updateIntervalSeconds: 30
     options:
       path: /etc/grafana/provisioning/dashboards

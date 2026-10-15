@@ -2,9 +2,11 @@ package ru.quipy.payments.logic
 
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.module.kotlin.registerKotlinModule
+import okhttp3.HttpUrl.Companion.toHttpUrl
+import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
-import okhttp3.RequestBody
+import okhttp3.RequestBody.Companion.toRequestBody
 import org.slf4j.LoggerFactory
 import ru.quipy.common.utils.SlidingWindowRateLimiter
 import ru.quipy.core.EventSourcingService
@@ -14,11 +16,9 @@ import ru.quipy.payments.metrics.PaymentResult
 import java.net.SocketTimeoutException
 import java.time.Clock
 import java.time.Duration
-import java.util.*
+import java.util.UUID
 import java.util.concurrent.Semaphore
 
-
-// Advice: always treat time as a Duration
 class PaymentExternalSystemAdapterImpl(
     private val properties: PaymentAccountProperties,
     private val paymentESService: EventSourcingService<UUID, PaymentAggregate, PaymentAggregateState>,
@@ -28,123 +28,121 @@ class PaymentExternalSystemAdapterImpl(
     private val clock: Clock = Clock.systemUTC(),
     private val client: OkHttpClient = OkHttpClient.Builder().build(),
 ) : PaymentExternalSystemAdapter {
-
     companion object {
-        val logger = LoggerFactory.getLogger(PaymentExternalSystemAdapter::class.java)
-
-        val emptyBody = RequestBody.create(null, ByteArray(0))
-        val mapper = ObjectMapper().registerKotlinModule()
+        private val logger = LoggerFactory.getLogger(PaymentExternalSystemAdapterImpl::class.java)
+        private val mapper = ObjectMapper().registerKotlinModule()
+        private val jsonMediaType = "application/json".toMediaType()
     }
 
     private val serviceName = properties.serviceName
     private val accountName = properties.accountName
-    private val requestAverageProcessingTime = properties.averageProcessingTime
-    private val rateLimitPerSec = properties.rateLimitPerSec
-    private val parallelRequests = properties.parallelRequests
     // A conservative admission reserve, not a bound on the entire HTTP call.
-    private val processingBudgetMillis = maxOf(requestAverageProcessingTime.toMillis(), client.readTimeoutMillis.toLong())
+    private val processingBudgetMillis = maxOf(properties.averageProcessingTime.toMillis(), client.readTimeoutMillis.toLong())
+    // The provider charges each payment, but applies both limits once per bulk HTTP request.
+    private val rateLimiter = SlidingWindowRateLimiter(1, Duration.ofMillis(1000L / properties.rateLimitPerSec + 10))
+    private val paymentSemaphore = Semaphore(properties.parallelRequests, true)
 
-    // Space requests evenly, leaving a small margin for scheduling and network jitter.
-    private val rateLimiter = SlidingWindowRateLimiter(1, Duration.ofMillis(1000L / rateLimitPerSec + 10))
-    private val paymentSemaphore = Semaphore(parallelRequests, true)
+    override fun performPaymentAsync(paymentId: UUID, amount: Int, paymentStartedAt: Long, deadline: Long) =
+        performPaymentsAsync(listOf(PaymentToProcess(paymentId, amount, paymentStartedAt, deadline)))
 
-    override fun performPaymentAsync(paymentId: UUID, amount: Int, paymentStartedAt: Long, deadline: Long) {
+    override fun performPaymentsAsync(payments: List<PaymentToProcess>) {
+        if (payments.isEmpty()) return
         paymentSemaphore.acquire()
         try {
-            performPayment(paymentId, amount, paymentStartedAt, deadline)
+            performPayments(payments)
         } finally {
             paymentSemaphore.release()
         }
     }
 
-    private fun performPayment(paymentId: UUID, amount: Int, paymentStartedAt: Long, deadline: Long) {
-        val transactionId = UUID.randomUUID()
-        var submissionRecorded = false
-
-        // Bombardier needs a submission event for both sent and rejected attempts.
-        fun recordSubmission(success: Boolean) {
-            val submittedAt = clock.millis()
-            paymentESService.update(paymentId) {
-                it.logSubmission(success, transactionId, submittedAt, Duration.ofMillis(submittedAt - paymentStartedAt))
-            }
-            submissionRecorded = true
-        }
-
+    private fun performPayments(payments: List<PaymentToProcess>) {
+        val attempts = payments.map { Attempt(it) }.toMutableList()
         try {
-            val hasTimeAfterSemaphore = hasTimeForProcessing(deadline)
-            if (hasTimeAfterSemaphore) {
-                rateLimiter.tickBlocking()
-            }
-            val shouldSubmit = hasTimeAfterSemaphore && hasTimeForProcessing(deadline)
-            recordSubmission(shouldSubmit)
-            if (!shouldSubmit) {
-                paymentESService.update(paymentId) {
-                    it.logProcessing(false, clock.millis(), transactionId, reason = "Insufficient time before payment deadline.")
+            rejectExpired(attempts)
+            if (attempts.isEmpty()) return
+            rateLimiter.tickBlocking()
+            rejectExpired(attempts)
+            if (attempts.isEmpty()) return
+
+            val bulk = ExternalSysBulkRequest(serviceName, accountName, attempts.map {
+                ExternalSysPaymentRequest(it.transactionId.toString(), it.payment.paymentId.toString(), it.payment.amount)
+            })
+            val url = "http://$paymentProviderHostPort/external/process/bulk".toHttpUrl().newBuilder()
+                .addQueryParameter("serviceName", serviceName)
+                .addQueryParameter("token", token)
+                .build()
+            val request = Request.Builder().url(url)
+                .put(mapper.writeValueAsString(bulk).toRequestBody(jsonMediaType)).build()
+            attempts.forEach { recordSubmission(it, true) }
+
+            metrics.recordSubmitted(attempts.size)
+            metrics.recordProviderRequest()
+            client.newCall(request).execute().use { response ->
+                val body = mapper.readValue(response.body?.string(), ExternalSysBulkResponse::class.java)
+                val expected = attempts.associate { it.payment.paymentId.toString() to it.transactionId.toString() }
+                val results = body.responses.associateBy { it.paymentId }
+                check(body.responses.size == attempts.size && results.keys == expected.keys &&
+                    results.all { (paymentId, result) -> result.transactionId == expected[paymentId] }) {
+                    "Invalid bulk response identifiers"
                 }
-                metrics.recordCompleted(PaymentResult.DEADLINE_EXCEEDED)
-                return
-            }
-
-            logger.info("[$accountName] Submit: $paymentId , txId: $transactionId")
-            val request = Request.Builder().run {
-                url("http://$paymentProviderHostPort/external/process?serviceName=$serviceName&token=$token&accountName=$accountName&transactionId=$transactionId&paymentId=$paymentId&amount=$amount")
-                post(emptyBody)
-            }.build()
-
-            val call = client.newCall(request)
-            metrics.recordSubmitted()
-            call.execute().use { response ->
-                val body = try {
-                    mapper.readValue(response.body?.string(), ExternalSysResponse::class.java)
-                } catch (e: Exception) {
-                    logger.error("[$accountName] [ERROR] Payment processed for txId: $transactionId, payment: $paymentId, result code: ${response.code}, reason: ${response.body?.string()}")
-                    ExternalSysResponse(transactionId.toString(), paymentId.toString(),false, e.message)
+                for (attempt in attempts) {
+                    val result = results.getValue(attempt.payment.paymentId.toString())
+                    val success = response.isSuccessful && result.result
+                    recordOutcome(attempt, if (success) PaymentResult.SUCCESS else PaymentResult.FAILED,
+                        result.message ?: if (response.isSuccessful) null else "Provider HTTP ${response.code}.")
                 }
-
-                logger.warn("[$accountName] Payment processed for txId: $transactionId, payment: $paymentId, succeeded: ${body.result}, message: ${body.message}")
-
-                // Здесь мы обновляем состояние оплаты в зависимости от результата в базе данных оплат.
-                // Это требуется сделать ВО ВСЕХ ИСХОДАХ (успешная оплата / неуспешная / ошибочная ситуация)
-                paymentESService.update(paymentId) {
-                    it.logProcessing(body.result, clock.millis(), transactionId, reason = body.message)
-                }
-                metrics.recordCompleted(if (body.result) PaymentResult.SUCCESS else PaymentResult.FAILED)
+                logger.info("[{}] Bulk request completed; payments={}, status={}", accountName, attempts.size, response.code)
             }
-        } catch (e: Exception) {
-            if (!submissionRecorded) {
-                recordSubmission(false)
+        } catch (error: Exception) {
+            val result = if (error is SocketTimeoutException) PaymentResult.TIMEOUT else PaymentResult.ERROR
+            val reason = if (error is SocketTimeoutException) "Request timeout."
+                else "Provider request failed: ${error.javaClass.simpleName}."
+            // Transport failures are not retried: the provider may already have processed the payments.
+            logger.warn("[{}] Bulk request failed; payments={}, type={}", accountName, attempts.size, error.javaClass.simpleName)
+            for (attempt in attempts.filterNot { it.completed }) {
+                if (!attempt.submissionRecorded) recordSubmission(attempt, false)
+                recordOutcome(attempt, result, reason)
             }
-            when (e) {
-                is SocketTimeoutException -> {
-                    logger.error("[$accountName] Payment timeout for txId: $transactionId, payment: $paymentId", e)
-                    paymentESService.update(paymentId) {
-                        it.logProcessing(false, clock.millis(), transactionId, reason = "Request timeout.")
-                    }
-                    metrics.recordCompleted(PaymentResult.TIMEOUT)
-                }
+            if (error is InterruptedException) Thread.currentThread().interrupt()
+        }
+    }
 
-                else -> {
-                    logger.error("[$accountName] Payment failed for txId: $transactionId, payment: $paymentId", e)
-
-                    paymentESService.update(paymentId) {
-                        it.logProcessing(false, clock.millis(), transactionId, reason = e.message)
-                    }
-                    metrics.recordCompleted(PaymentResult.ERROR)
-                }
-            }
-            if (e is InterruptedException) {
-                Thread.currentThread().interrupt()
+    private fun rejectExpired(attempts: MutableList<Attempt>) {
+        val iterator = attempts.iterator()
+        while (iterator.hasNext()) {
+            val attempt = iterator.next()
+            if (attempt.payment.deadline - clock.millis() <= processingBudgetMillis) {
+                recordSubmission(attempt, false)
+                recordOutcome(attempt, PaymentResult.DEADLINE_EXCEEDED, "Insufficient time before payment deadline.")
+                iterator.remove()
             }
         }
     }
 
-    private fun hasTimeForProcessing(deadline: Long): Boolean =
-        deadline - clock.millis() > processingBudgetMillis
+    private fun recordSubmission(attempt: Attempt, success: Boolean) {
+        val submittedAt = clock.millis()
+        paymentESService.update(attempt.payment.paymentId) {
+            it.logSubmission(success, attempt.transactionId, submittedAt,
+                Duration.ofMillis(submittedAt - attempt.payment.paymentStartedAt))
+        }
+        attempt.submissionRecorded = true
+    }
+
+    private fun recordOutcome(attempt: Attempt, result: PaymentResult, reason: String?) {
+        paymentESService.update(attempt.payment.paymentId) {
+            it.logProcessing(result == PaymentResult.SUCCESS, clock.millis(), attempt.transactionId, reason = reason)
+        }
+        attempt.completed = true
+        metrics.recordCompleted(result)
+    }
+
+    private class Attempt(val payment: PaymentToProcess) {
+        val transactionId: UUID = UUID.randomUUID()
+        var submissionRecorded = false
+        var completed = false
+    }
 
     override fun price() = properties.price
-
     override fun isEnabled() = properties.enabled
-
     override fun name() = properties.accountName
-
 }
