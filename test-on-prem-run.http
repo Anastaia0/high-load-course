@@ -1,19 +1,21 @@
+# Requires PAYMENT_SERVICE_NAME and PAYMENT_TOKEN in the HTTP Client process environment.
 ### Run test remotely
 # @timeout 120
 POST http://77.234.215.138:34321/run
 Content-Type: application/json
 
 {
-  "serviceName": "{{serviceName}}",
-  "token": "{{token}}",
-  "branch": "main",
-  "accounts": "acc-12,acc-20",
+  "serviceName": "{{$env.PAYMENT_SERVICE_NAME}}",
+  "token": "{{$env.PAYMENT_TOKEN}}",
+  "branch": "case-3",
+  "accounts": "acc-5",
   "ratePerSecond": 2,
-  "testCount": 10,
-  "processingTimeMillis": 80000,
-  "onPremises": true
+  "testCount": 500,
+  "processingTimeMillis": 60000,
+  "onPremises": true,
+  "testSuccessByThePaymentFact": true
 }
 
 ### Stop running test to save credits
 # @timeout 120
-POST http://77.234.215.138:31234/test/stop/{{serviceName}}
+POST http://77.234.215.138:31234/test/stop/{{$env.PAYMENT_SERVICE_NAME}}

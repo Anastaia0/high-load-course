@@ -1,15 +1,17 @@
+# Requires PAYMENT_SERVICE_NAME and PAYMENT_TOKEN in the HTTP Client process environment.
 ### Run test locally
-POST http://localhost:1234/test/run
+POST http://localhost:11234/test/run
 Content-Type: application/json
 
 {
-  "serviceName": "{{serviceName}}",
-  "token": "{{token}}",
-  "ratePerSecond": 1,
-  "testCount": 100,
-  "processingTimeMillis": 80000
+  "serviceName": "{{$env.PAYMENT_SERVICE_NAME}}",
+  "token": "{{$env.PAYMENT_TOKEN}}",
+  "ratePerSecond": 2,
+  "testCount": 500,
+  "processingTimeMillis": 60000,
+  "testSuccessByThePaymentFact": false
 }
 
 ### Stop running test to save time and resources
 # @timeout 120
-POST http://localhost:1234/test/stop/{{serviceName}}
+POST http://localhost:11234/test/stop/{{$env.PAYMENT_SERVICE_NAME}}

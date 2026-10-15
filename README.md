@@ -56,3 +56,32 @@ git checkout main
 # merge changes from the main repository into your main branch
 git merge upstream/main 
 ```
+
+## Case 1
+
+### Первый прогон
+
+![Первый прогон](docs/case-1/before.jpg)
+
+### После
+
+![После](docs/case-1/after.jpg)
+
+## Case 3
+
+`acc-5` · 2 покупки/с · 500 покупок · `processingTimeMillis = 60000`.
+
+Оплаты отправляются через
+`PUT /external/process/bulk`: до пяти покупок в одном запросе, накопление не более
+двух секунд. Исходные дедлайны, суммы и лимиты аккаунта сохраняются.
+
+Собственные счётчики `shop_payment_received_total`, `shop_payment_submitted_total`
+и `shop_payment_completed_total` показывают поступившие, отправленные и завершённые
+оплаты. `shop_payment_provider_requests_total` отдельно считает HTTP-пакеты.
+
+**Локальный результат: 500/500 успешных покупок, 117 HTTP-запросов.**
+Прогон 15.10.2026, 17:27:58–17:32:21 МСК; очередь завершена.
+
+![Кейс 3: 500 успешных покупок и 117 HTTP-пакетов](docs/case-3/bulk.jpg)
+
+[Grafana на интервале прогона](http://127.0.0.1:13003/d/case-3-payments?from=1792074463433&to=1792074831536&var-service=glekler_02&var-shop_job=case-3-shop&var-provider_job=case-3-bombardier).

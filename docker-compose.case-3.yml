@@ -1,0 +1,83 @@
+services:
+  postgres:
+    image: postgres:14.9-alpine
+    environment:
+      POSTGRES_DB: postgres
+      POSTGRES_USER: ${POSTGRES_USER:?Load the existing local database configuration}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Load the existing local database configuration}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$$POSTGRES_USER\" -d postgres"]
+      interval: 3s
+      timeout: 3s
+      retries: 30
+
+  bombardier:
+    image: ghcr.io/andrsuh/bombardier:${BOMBARDIER_VERSION:-latest}
+    environment:
+      TEST_SERVICE_IP: host.docker.internal
+      TOKENS_AUTH_HOSTS: 77.234.215.138:34321,host.docker.internal:4321
+    ports:
+      - "127.0.0.1:11234:1234"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  shop:
+    platform: linux/amd64
+    image: ${CASE3_IMAGE:-highload-case3:baseline}
+    build: .
+    environment:
+      PAYMENT_SERVICE_NAME: ${PAYMENT_SERVICE_NAME:?Load the existing payment credentials}
+      PAYMENT_TOKEN: ${PAYMENT_TOKEN:?Load the existing payment credentials}
+      PAYMENT_ACCOUNTS: acc-5
+      PAYMENT_HOST: bombardier
+      PAYMENT_PORT: "1234"
+      POSTGRES_ADDRESS: postgres
+      POSTGRES_PORT: "5432"
+      SPRING_DATASOURCE_HIKARI_USERNAME: ${POSTGRES_USER:?Load the existing local database configuration}
+      SPRING_DATASOURCE_HIKARI_PASSWORD: ${POSTGRES_PASSWORD:?Load the existing local database configuration}
+    ports:
+      - "127.0.0.1:8081:8081"
+      - "127.0.0.1:18083:8081"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      bombardier:
+        condition: service_started
+    restart: "on-failure:5"
+
+  prometheus:
+    image: quay.io/prometheus/prometheus:v2.32.0
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+    volumes:
+      - ./prometheus/case-3.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    ports:
+      - "127.0.0.1:19093:9090"
+
+  grafana:
+    image: grafana/grafana
+    mem_limit: 512m
+    environment:
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GOMEMLIMIT: 192MiB
+      GF_PLUGINS_PREINSTALL_DISABLED: "true"
+      GF_PLUGINS_PREINSTALL_AUTO_UPDATE: "false"
+      GF_PLUGINS_DISABLE_PLUGINS: elasticsearch,grafana-advisor-app,grafana-exploretraces-app,grafana-lokiexplore-app,grafana-metricsdrilldown-app,grafana-pyroscope-app,grafana-pyroscope-datasource,grafana-postgresql-datasource,influxdb,opentsdb,stackdriver,tempo,zipkin
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - grafana-data:/var/lib/grafana
+    ports:
+      - "127.0.0.1:13003:3000"
+    depends_on:
+      - prometheus
+
+volumes:
+  postgres-data:
+  prometheus-data:
+  grafana-data:

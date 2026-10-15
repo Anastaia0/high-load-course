@@ -1,0 +1,9 @@
+.git
+.env
+*.env
+http-client*.json
+test-*.http
+target
+grafana/data
+prometheus/data
+docs
