@@ -1,0 +1,791 @@
+{
+  "label": "after",
+  "service": "glekler_02",
+  "account": {
+    "accountName": "acc-5",
+    "parallelRequests": 5,
+    "rateLimitPerSec": 3,
+    "price": 30,
+    "averageProcessingTime": "PT4.9S"
+  },
+  "parameters": {
+    "ratePerSecond": 2,
+    "testCount": 500,
+    "processingTimeMillis": 60000
+  },
+  "started_at_utc": "2026-10-15T12:14:09.200080+00:00",
+  "started_at_moscow": "2026-10-15T15:14:09.200976+03:00",
+  "before": {
+    "timestamp_ms": 1792066449056,
+    "shop": [
+      {
+        "name": "shop_payment_completed_total",
+        "labels": {
+          "account": "acc-5",
+          "result": "deadline_exceeded",
+          "service": "glekler_02"
+        },
+        "value": 0.0
+      },
+      {
+        "name": "shop_payment_completed_total",
+        "labels": {
+          "account": "acc-5",
+          "result": "error",
+          "service": "glekler_02"
+        },
+        "value": 0.0
+      },
+      {
+        "name": "shop_payment_completed_total",
+        "labels": {
+          "account": "acc-5",
+          "result": "failed",
+          "service": "glekler_02"
+        },
+        "value": 0.0
+      },
+      {
+        "name": "shop_payment_completed_total",
+        "labels": {
+          "account": "acc-5",
+          "result": "success",
+          "service": "glekler_02"
+        },
+        "value": 0.0
+      },
+      {
+        "name": "shop_payment_completed_total",
+        "labels": {
+          "account": "acc-5",
+          "result": "timeout",
+          "service": "glekler_02"
+        },
+        "value": 0.0
+      },
+      {
+        "name": "shop_payment_received_total",
+        "labels": {
+          "service": "glekler_02"
+        },
+        "value": 0.0
+      },
+      {
+        "name": "shop_payment_submitted_total",
+        "labels": {
+          "account": "acc-5",
+          "service": "glekler_02"
+        },
+        "value": 0.0
+      }
+    ],
+    "provider": []
+  },
+  "timeline": [
+    {
+      "timestamp_ms": 1792066459214,
+      "completed": 4.0,
+      "expenses": 270.0,
+      "income": 1933.0,
+      "received": 18.0,
+      "submitted": 9.0,
+      "tests": 4.0,
+      "running_tests": 1
+    },
+    {
+      "timestamp_ms": 1792066469342,
+      "completed": 14.0,
+      "expenses": 570.0,
+      "income": 7408.0,
+      "received": 38.0,
+      "submitted": 19.0,
+      "tests": 14.0,
+      "running_tests": 1
+    },
+    {
+      "timestamp_ms": 1792066479421,
+      "completed": 24.0,
+      "expenses": 870.0,
+      "income": 12025.0,
+      "received": 58.0,
+      "submitted": 29.0,
+      "tests": 24.0,
+      "running_tests": 1
+    },
+    {
+      "timestamp_ms": 1792066489464,
+      "completed": 31.0,
+      "expenses": 1080.0,
+      "income": 14047.0,
+      "received": 78.0,
+      "submitted": 36.0,
+      "tests": 31.0,
+      "running_tests": 1
+    },
+    {
+      "timestamp_ms": 1792066499575,
+      "completed": 45.0,
+      "expenses": 1500.0,
+      "income": 19021.0,
+      "received": 98.0,
+      "submitted": 50.0,
+      "tests": 45.0,
+      "running_tests": 1
+    },
+    {
+      "timestamp_ms": 1792066509646,
+      "completed": 58.0,
+      "expenses": 1890.0,
+      "income": 23392.0,
+      "received": 118.0,
+      "submitted": 63.0,
+      "tests": 58.0,
+      "running_tests": 1
+    },
+    {
+      "timestamp_ms": 1792066519734,
+      "completed": 68.0,
+      "expenses": 2190.0,
+      "income": 27807.0,
+      "received": 138.0,
+      "submitted": 73.0,
+      "tests": 68.0,
+      "running_tests": 1
+    },
+    {
+      "timestamp_ms": 1792066529821,
+      "completed": 80.0,
+      "expenses": 2520.0,
+      "income": 33554.0,
+      "received": 158.0,
+      "submitted": 84.0,
+      "tests": 80.0,
+      "running_tests": 1
+    },
+    {
+      "timestamp_ms": 1792066539889,
+      "completed": 88.0,
+      "expenses": 2790.0,
+      "income": 35470.0,
+      "received": 178.0,
+      "submitted": 93.0,
+      "tests": 88.0,
+      "running_tests": 1
+    },
+    {
+      "timestamp_ms": 1792066549988,
+      "completed": 98.0,
+      "expenses": 3090.0,
+      "income": 38890.0,
+      "received": 198.0,
+      "submitted": 103.0,
+      "tests": 98.0,
+      "running_tests": 1
+    },
+    {
+      "timestamp_ms": 1792066560046,
+      "completed": 111.0,
+      "expenses": 3330.0,
+      "income": 42313.0,
+      "received": 218.0,
+      "submitted": 110.0,
+      "tests": 106.0,
+      "running_tests": 1
+    },
+    {
+      "timestamp_ms": 1792066570287,
+      "completed": 136.0,
+      "expenses": 3540.0,
+      "income": 45106.0,
+      "received": 240.0,
+      "submitted": 118.0,
+      "tests": 123.0,
+      "running_tests": 1
+    },
+    {
+      "timestamp_ms": 1792066580379,
+      "completed": 157.0,
+      "expenses": 3930.0,
+      "income": 50610.0,
+      "received": 260.0,
+      "submitted": 131.0,
+      "tests": 149.0,
+      "running_tests": 1
+    },
+    {
+      "timestamp_ms": 1792066590448,
+      "completed": 178.0,
+      "expenses": 4260.0,
+      "income": 56139.0,
+      "received": 280.0,
+      "submitted": 142.0,
+      "tests": 169.0,
+      "running_tests": 1
+    },
+    {
+      "timestamp_ms": 1792066601322,
+      "completed": 197.0,
+      "expenses": 4590.0,
+      "income": 61024.0,
+      "received": 302.0,
+      "submitted": 153.0,
+      "tests": 188.0,
+      "running_tests": 1
+    },
+    {
+      "timestamp_ms": 1792066611390,
+      "completed": 216.0,
+      "expenses": 4860.0,
+      "income": 65952.0,
+      "received": 320.0,
+      "submitted": 162.0,
+      "tests": 206.0,
+      "running_tests": 1
+    },
+    {
+      "timestamp_ms": 1792066621874,
+      "completed": 239.0,
+      "expenses": 5130.0,
+      "income": 69500.0,
+      "received": 342.0,
+      "submitted": 171.0,
+      "tests": 227.0,
+      "running_tests": 1
+    },
+    {
+      "timestamp_ms": 1792066631943,
+      "completed": 259.0,
+      "expenses": 5460.0,
+      "income": 73160.0,
+      "received": 362.0,
+      "submitted": 182.0,
+      "tests": 250.0,
+      "running_tests": 1
+    },
+    {
+      "timestamp_ms": 1792066641988,
+      "completed": 278.0,
+      "expenses": 5850.0,
+      "income": 78082.0,
+      "received": 382.0,
+      "submitted": 195.0,
+      "tests": 271.0,
+      "running_tests": 1
+    },
+    {
+      "timestamp_ms": 1792066652034,
+      "completed": 296.0,
+      "expenses": 6090.0,
+      "income": 81668.0,
+      "received": 402.0,
+      "submitted": 203.0,
+      "tests": 287.0,
+      "running_tests": 1
+    },
+    {
+      "timestamp_ms": 1792066662143,
+      "completed": 317.0,
+      "expenses": 6480.0,
+      "income": 87072.0,
+      "received": 424.0,
+      "submitted": 216.0,
+      "tests": 312.0,
+      "running_tests": 1
+    },
+    {
+      "timestamp_ms": 1792066672181,
+      "completed": 338.0,
+      "expenses": 6750.0,
+      "income": 90812.0,
+      "received": 444.0,
+      "submitted": 225.0,
+      "tests": 328.0,
+      "running_tests": 1
+    },
+    {
+      "timestamp_ms": 1792066682227,
+      "completed": 358.0,
+      "expenses": 7020.0,
+      "income": 94228.0,
+      "received": 464.0,
+      "submitted": 234.0,
+      "tests": 349.0,
+      "running_tests": 1
+    },
+    {
+      "timestamp_ms": 1792066692288,
+      "completed": 378.0,
+      "expenses": 7290.0,
+      "income": 97147.0,
+      "received": 484.0,
+      "submitted": 243.0,
+      "tests": 368.0,
+      "running_tests": 1
+    },
+    {
+      "timestamp_ms": 1792066702326,
+      "completed": 400.0,
+      "expenses": 7620.0,
+      "income": 101011.0,
+      "received": 500.0,
+      "submitted": 254.0,
+      "tests": 390.0,
+      "running_tests": 0
+    },
+    {
+      "timestamp_ms": 1792066712383,
+      "completed": 419.0,
+      "expenses": 7920.0,
+      "income": 104571.0,
+      "received": 500.0,
+      "submitted": 264.0,
+      "tests": 410.0,
+      "running_tests": 0
+    },
+    {
+      "timestamp_ms": 1792066722439,
+      "completed": 440.0,
+      "expenses": 8160.0,
+      "income": 108474.0,
+      "received": 500.0,
+      "submitted": 272.0,
+      "tests": 427.0,
+      "running_tests": 0
+    },
+    {
+      "timestamp_ms": 1792066732474,
+      "completed": 460.0,
+      "expenses": 8520.0,
+      "income": 113676.0,
+      "received": 500.0,
+      "submitted": 284.0,
+      "tests": 452.0,
+      "running_tests": 0
+    },
+    {
+      "timestamp_ms": 1792066742546,
+      "completed": 475.0,
+      "expenses": 8730.0,
+      "income": 116721.0,
+      "received": 500.0,
+      "submitted": 291.0,
+      "tests": 467.0,
+      "running_tests": 0
+    },
+    {
+      "timestamp_ms": 1792066752605,
+      "completed": 498.0,
+      "expenses": 8940.0,
+      "income": 120280.0,
+      "received": 500.0,
+      "submitted": 298.0,
+      "tests": 489.0,
+      "running_tests": 0
+    },
+    {
+      "timestamp_ms": 1792066763020,
+      "completed": 500.0,
+      "expenses": 8940.0,
+      "income": 121301.0,
+      "received": 500.0,
+      "submitted": 298.0,
+      "tests": 500.0,
+      "running_tests": 0
+    }
+  ],
+  "state": "complete",
+  "grafana_available_before": true,
+  "submission": {
+    "http_status": 200
+  },
+  "after": {
+    "timestamp_ms": 1792066763020,
+    "shop": [
+      {
+        "name": "shop_payment_completed_total",
+        "labels": {
+          "account": "acc-5",
+          "result": "deadline_exceeded",
+          "service": "glekler_02"
+        },
+        "value": 202.0
+      },
+      {
+        "name": "shop_payment_completed_total",
+        "labels": {
+          "account": "acc-5",
+          "result": "error",
+          "service": "glekler_02"
+        },
+        "value": 0.0
+      },
+      {
+        "name": "shop_payment_completed_total",
+        "labels": {
+          "account": "acc-5",
+          "result": "failed",
+          "service": "glekler_02"
+        },
+        "value": 0.0
+      },
+      {
+        "name": "shop_payment_completed_total",
+        "labels": {
+          "account": "acc-5",
+          "result": "success",
+          "service": "glekler_02"
+        },
+        "value": 298.0
+      },
+      {
+        "name": "shop_payment_completed_total",
+        "labels": {
+          "account": "acc-5",
+          "result": "timeout",
+          "service": "glekler_02"
+        },
+        "value": 0.0
+      },
+      {
+        "name": "shop_payment_received_total",
+        "labels": {
+          "service": "glekler_02"
+        },
+        "value": 500.0
+      },
+      {
+        "name": "shop_payment_submitted_total",
+        "labels": {
+          "account": "acc-5",
+          "service": "glekler_02"
+        },
+        "value": 298.0
+      }
+    ],
+    "provider": [
+      {
+        "name": "payments_amount_total",
+        "labels": {
+          "service": "glekler_02"
+        },
+        "value": 121301.0
+      },
+      {
+        "name": "test_duration_count",
+        "labels": {
+          "service": "glekler_02",
+          "testOutcome": "FAIL"
+        },
+        "value": 202.0
+      },
+      {
+        "name": "test_duration_sum",
+        "labels": {
+          "service": "glekler_02",
+          "testOutcome": "FAIL"
+        },
+        "value": 12134066.0
+      },
+      {
+        "name": "test_duration_count",
+        "labels": {
+          "service": "glekler_02",
+          "testOutcome": "SUCCESS"
+        },
+        "value": 298.0
+      },
+      {
+        "name": "test_duration_sum",
+        "labels": {
+          "service": "glekler_02",
+          "testOutcome": "SUCCESS"
+        },
+        "value": 13583182.0
+      },
+      {
+        "name": "stage_duration_ok_count",
+        "labels": {
+          "stage": "ChoosingUserAccountStage",
+          "service": "glekler_02",
+          "result": "success"
+        },
+        "value": 500.0
+      },
+      {
+        "name": "stage_duration_ok_sum",
+        "labels": {
+          "stage": "ChoosingUserAccountStage",
+          "service": "glekler_02",
+          "result": "success"
+        },
+        "value": 38.0
+      },
+      {
+        "name": "stage_duration_ok_count",
+        "labels": {
+          "stage": "OrderPaymentStage",
+          "service": "glekler_02",
+          "result": "failed"
+        },
+        "value": 202.0
+      },
+      {
+        "name": "stage_duration_ok_sum",
+        "labels": {
+          "stage": "OrderPaymentStage",
+          "service": "glekler_02",
+          "result": "failed"
+        },
+        "value": 12125644.0
+      },
+      {
+        "name": "stage_duration_ok_count",
+        "labels": {
+          "stage": "OrderCreationStage",
+          "service": "glekler_02",
+          "result": "success"
+        },
+        "value": 500.0
+      },
+      {
+        "name": "stage_duration_ok_sum",
+        "labels": {
+          "stage": "OrderCreationStage",
+          "service": "glekler_02",
+          "result": "success"
+        },
+        "value": 30822.0
+      },
+      {
+        "name": "stage_duration_ok_count",
+        "labels": {
+          "stage": "OrderPaymentStage",
+          "service": "glekler_02",
+          "result": "success"
+        },
+        "value": 298.0
+      },
+      {
+        "name": "stage_duration_ok_sum",
+        "labels": {
+          "stage": "OrderPaymentStage",
+          "service": "glekler_02",
+          "result": "success"
+        },
+        "value": 13560574.0
+      },
+      {
+        "name": "external_amount_total",
+        "labels": {
+          "accountName": "acc-5",
+          "service": "glekler_02"
+        },
+        "value": 8940.0
+      },
+      {
+        "name": "http_request_latent_count",
+        "labels": {
+          "service": "glekler_02",
+          "method": "createUser"
+        },
+        "value": 1.0
+      },
+      {
+        "name": "http_request_latent_sum",
+        "labels": {
+          "service": "glekler_02",
+          "method": "createUser"
+        },
+        "value": 1792066449398.0
+      },
+      {
+        "name": "http_request_latent_count",
+        "labels": {
+          "service": "glekler_02",
+          "method": "authenticate"
+        },
+        "value": 1.0
+      },
+      {
+        "name": "http_request_latent_sum",
+        "labels": {
+          "service": "glekler_02",
+          "method": "authenticate"
+        },
+        "value": 1792066450066.0
+      },
+      {
+        "name": "http_request_latent_count",
+        "labels": {
+          "service": "glekler_02",
+          "method": "payOrder"
+        },
+        "value": 500.0
+      },
+      {
+        "name": "http_request_latent_sum",
+        "labels": {
+          "service": "glekler_02",
+          "method": "payOrder"
+        },
+        "value": 31185.0
+      },
+      {
+        "name": "http_request_latent_count",
+        "labels": {
+          "service": "glekler_02",
+          "method": "createOrder"
+        },
+        "value": 500.0
+      },
+      {
+        "name": "http_request_latent_sum",
+        "labels": {
+          "service": "glekler_02",
+          "method": "createOrder"
+        },
+        "value": 250.0
+      },
+      {
+        "name": "payment_finished_total",
+        "labels": {
+          "failReason": "",
+          "outcome": "SUCCESS",
+          "service": "glekler_02"
+        },
+        "value": 298.0
+      },
+      {
+        "name": "payment_finished_total",
+        "labels": {
+          "failReason": "CLIENT_TIMEOUT",
+          "outcome": "FAIL",
+          "service": "glekler_02"
+        },
+        "value": 202.0
+      },
+      {
+        "name": "http_external_duration_count",
+        "labels": {
+          "service": "glekler_02",
+          "method": "createOrder",
+          "result": "OK"
+        },
+        "value": 500.0
+      },
+      {
+        "name": "http_external_duration_sum",
+        "labels": {
+          "service": "glekler_02",
+          "method": "createOrder",
+          "result": "OK"
+        },
+        "value": 30429.0
+      },
+      {
+        "name": "http_external_duration_count",
+        "labels": {
+          "service": "glekler_02",
+          "method": "payOrder",
+          "result": "OK"
+        },
+        "value": 500.0
+      },
+      {
+        "name": "http_external_duration_sum",
+        "labels": {
+          "service": "glekler_02",
+          "method": "payOrder",
+          "result": "OK"
+        },
+        "value": 17704.0
+      },
+      {
+        "name": "http_external_duration_count",
+        "labels": {
+          "service": "glekler_02",
+          "method": "createUser",
+          "result": "OK"
+        },
+        "value": 1.0
+      },
+      {
+        "name": "http_external_duration_sum",
+        "labels": {
+          "service": "glekler_02",
+          "method": "createUser",
+          "result": "OK"
+        },
+        "value": 652.0
+      },
+      {
+        "name": "http_external_duration_count",
+        "labels": {
+          "service": "glekler_02",
+          "method": "authenticate",
+          "result": "OK"
+        },
+        "value": 1.0
+      },
+      {
+        "name": "http_external_duration_sum",
+        "labels": {
+          "service": "glekler_02",
+          "method": "authenticate",
+          "result": "OK"
+        },
+        "value": 52.0
+      },
+      {
+        "name": "external_sys_duration_count",
+        "labels": {
+          "service": "glekler_02",
+          "accountName": "acc-5",
+          "outcome": "SUCCESS"
+        },
+        "value": 298.0
+      },
+      {
+        "name": "external_sys_duration_sum",
+        "labels": {
+          "service": "glekler_02",
+          "accountName": "acc-5",
+          "outcome": "SUCCESS"
+        },
+        "value": 1454533.0
+      }
+    ]
+  },
+  "deltas": {
+    "completed": 500.0,
+    "expenses": 8940.0,
+    "income": 121301.0,
+    "received": 500.0,
+    "submitted": 298.0,
+    "tests": 500.0
+  },
+  "shop_results": {
+    "deadline_exceeded": 202.0,
+    "error": 0.0,
+    "failed": 0.0,
+    "success": 298.0,
+    "timeout": 0.0
+  },
+  "customer_results": {
+    "FAIL": 202.0,
+    "SUCCESS": 298.0
+  },
+  "payment_results": {
+    "FAIL": 202.0,
+    "SUCCESS": 298.0
+  },
+  "payment_failure_reasons": {
+    "": 298.0,
+    "CLIENT_TIMEOUT": 202.0
+  },
+  "provider_results": {
+    "SUCCESS": 298.0
+  },
+  "ended_at_utc": "2026-10-15T12:19:23.072658+00:00",
+  "grafana_url": "http://127.0.0.1:13003/d/case-3-payments?from=1792066434056&to=1792066763072&var-service=glekler_02&var-shop_job=case-3-shop&var-provider_job=case-3-bombardier"
+}
