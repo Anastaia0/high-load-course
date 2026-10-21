@@ -41,7 +41,11 @@ class PaymentExternalSystemAdapterImpl(
     private val rateLimiter =
             SlidingWindowRateLimiter(1, Duration.ofMillis(1000L / rateLimitPerSec + 10))
     private val paymentSemaphore = Semaphore(parallelRequests, true)
-    private val client = OkHttpClient.Builder().build()
+    private val client =
+            OkHttpClient.Builder()
+                    .readTimeout(0, TimeUnit.MILLISECONDS)
+                    .retryOnConnectionFailure(false)
+                    .build()
 
     override fun performPaymentAsync(
             paymentId: UUID,
@@ -166,7 +170,31 @@ class PaymentExternalSystemAdapterImpl(
                 return
             }
 
+            val sendingAt = now()
+            val paymentDeadline = latestStart + requestAverageProcessingTime.toMillis()
+
+            logger.info(
+                    "[$accountName] Sending payment: paymentId=$paymentId, " +
+                            "waitBeforeHttpMs=${sendingAt - paymentStartedAt}, " +
+                            "remainingBeforeDeadlineMs=${paymentDeadline - sendingAt}"
+            )
+
+            val remainingMillis = paymentDeadline - now()
+
+            if (remainingMillis <= 0L) {
+                paymentESService.update(paymentId) {
+                    it.logProcessing(
+                            false,
+                            now(),
+                            transactionId,
+                            reason = "Payment deadline exceeded before HTTP call."
+                    )
+                }
+                return
+            }
+
             val call = client.newCall(request)
+            call.timeout().timeout(remainingMillis, TimeUnit.MILLISECONDS)
 
             call.execute().use { response ->
                 val rawBody = response.body?.string()
@@ -235,6 +263,13 @@ class PaymentExternalSystemAdapterImpl(
     private fun rejectPayment(paymentId: UUID, paymentStartedAt: Long, reason: String) {
         val transactionId = UUID.randomUUID()
         val rejectedAt = now()
+
+        logger.warn(
+                "[$accountName] Payment rejected locally: " +
+                        "paymentId=$paymentId, " +
+                        "elapsedMs=${rejectedAt - paymentStartedAt}, " +
+                        "reason=$reason"
+        )
 
         paymentESService.update(paymentId) {
             it.logSubmission(

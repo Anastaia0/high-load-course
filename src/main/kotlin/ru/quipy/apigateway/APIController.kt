@@ -1,23 +1,23 @@
 package ru.quipy.apigateway
 
+import java.util.*
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.annotation.Autowired
+import org.springframework.http.HttpStatus
+import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.*
 import ru.quipy.orders.repository.OrderRepository
 import ru.quipy.payments.logic.OrderPayer
-import java.util.*
 
 @RestController
 class APIController {
 
     val logger: Logger = LoggerFactory.getLogger(APIController::class.java)
 
-    @Autowired
-    private lateinit var orderRepository: OrderRepository
+    @Autowired private lateinit var orderRepository: OrderRepository
 
-    @Autowired
-    private lateinit var orderPayer: OrderPayer
+    @Autowired private lateinit var orderPayer: OrderPayer
 
     @PostMapping("/users")
     fun createUser(@RequestBody req: CreateUserRequest): User {
@@ -30,22 +30,23 @@ class APIController {
 
     @PostMapping("/orders")
     fun createOrder(@RequestParam userId: UUID, @RequestParam price: Int): Order {
-        val order = Order(
-            UUID.randomUUID(),
-            userId,
-            System.currentTimeMillis(),
-            OrderStatus.COLLECTING,
-            price,
-        )
+        val order =
+                Order(
+                        UUID.randomUUID(),
+                        userId,
+                        System.currentTimeMillis(),
+                        OrderStatus.COLLECTING,
+                        price,
+                )
         return orderRepository.save(order)
     }
 
     data class Order(
-        val id: UUID,
-        val userId: UUID,
-        val timeCreated: Long,
-        val status: OrderStatus,
-        val price: Int,
+            val id: UUID,
+            val userId: UUID,
+            val timeCreated: Long,
+            val status: OrderStatus,
+            val price: Int,
     )
 
     enum class OrderStatus {
@@ -55,20 +56,39 @@ class APIController {
     }
 
     @PostMapping("/orders/{orderId}/payment")
-    fun payOrder(@PathVariable orderId: UUID, @RequestParam deadline: Long): PaymentSubmissionDto {
-        val paymentId = UUID.randomUUID()
-        val order = orderRepository.findById(orderId)?.let {
-            orderRepository.save(it.copy(status = OrderStatus.PAYMENT_IN_PROGRESS))
-            it
-        } ?: throw IllegalArgumentException("No such order $orderId")
+    fun payOrder(
+            @PathVariable orderId: UUID,
+            @RequestParam deadline: Long
+    ): ResponseEntity<PaymentSubmissionDto> {
 
+        if (!orderPayer.tryReservePayment()) {
+            return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS).build<PaymentSubmissionDto>()
+        }
 
-        val createdAt = orderPayer.processPayment(orderId, order.price, paymentId, deadline)
-        return PaymentSubmissionDto(createdAt, paymentId)
+        var handedToWorker = false
+
+        try {
+            val order =
+                    orderRepository.findById(orderId)
+                            ?: throw IllegalArgumentException("No such order $orderId")
+
+            val paymentId = UUID.randomUUID()
+
+            orderRepository.save(order.copy(status = OrderStatus.PAYMENT_IN_PROGRESS))
+
+            val createdAt = orderPayer.processPayment(orderId, order.price, paymentId, deadline)
+
+            handedToWorker = true
+
+            return ResponseEntity.ok(PaymentSubmissionDto(createdAt, paymentId))
+        } finally {
+            // Если задача не передана обработчику,
+            // контроллер сам возвращает зарезервированное место.
+            if (!handedToWorker) {
+                orderPayer.releasePaymentReservation()
+            }
+        }
     }
 
-    class PaymentSubmissionDto(
-        val timestamp: Long,
-        val transactionId: UUID
-    )
+    class PaymentSubmissionDto(val timestamp: Long, val transactionId: UUID)
 }
