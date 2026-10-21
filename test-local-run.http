@@ -6,7 +6,7 @@ Content-Type: application/json
   "serviceName": "glekler_02",
   "token": "qYwFSEDHU52V3ky0",
   "ratePerSecond": 2,
-  "testCount": 100,
+  "testCount": 500,
   "processingTimeMillis": 60000
 }
 
