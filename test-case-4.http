@@ -1,0 +1,14 @@
+### Remote case 4 run. Credentials come from the local HTTP client environment.
+POST http://77.234.215.138:34321/run
+Content-Type: application/json
+
+{
+  "serviceName": "{{serviceName}}",
+  "token": "{{token}}",
+  "branch": "case-4",
+  "accounts": "acc-18",
+  "ratePerSecond": 200,
+  "testCount": 6000,
+  "processingTimeMillis": 3000,
+  "onPremises": true
+}

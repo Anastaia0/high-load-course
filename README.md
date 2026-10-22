@@ -66,3 +66,7 @@ git merge upstream/main
 ### После
 
 ![После](docs/case-1/after.jpg)
+
+## Case 4
+
+[Описание буферизации, параметров и результатов проверки](docs/case-4/README.md).
