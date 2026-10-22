@@ -56,3 +56,13 @@ git checkout main
 # merge changes from the main repository into your main branch
 git merge upstream/main 
 ```
+
+## Case 1
+
+### Первый прогон
+
+![Первый прогон](docs/case-1/before.jpg)
+
+### После
+
+![После](docs/case-1/after.jpg)
