@@ -1,6 +1,7 @@
 package ru.quipy.apigateway
 
 import java.util.*
+import java.util.concurrent.RejectedExecutionException
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.annotation.Autowired
@@ -60,31 +61,19 @@ class APIController {
         @PathVariable orderId: UUID,
         @RequestParam deadline: Long
     ): ResponseEntity<PaymentSubmissionDto> {
-        if (!orderPayer.tryReservePayment()) {
-            return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS).build<PaymentSubmissionDto>()
-        }
-
-        var handedToWorker = false
-
-        try {
-            val order = orderRepository.findById(orderId)
-                ?: throw IllegalArgumentException("No such order $orderId")
-
-            val paymentId = UUID.randomUUID()
-
-            orderRepository.save(order.copy(status = OrderStatus.PAYMENT_IN_PROGRESS))
-
-            val createdAt = orderPayer.processPayment(orderId, order.price, paymentId, deadline)
-
-            handedToWorker = true
-
-            return ResponseEntity.ok(PaymentSubmissionDto(createdAt, paymentId))
-        } finally {
-            if (!handedToWorker) {
-                orderPayer.releasePaymentReservation()
-            }
-        }
+        val order = orderRepository.findById(orderId)
+            ?: throw IllegalArgumentException("No such order $orderId")
+        val paymentId = UUID.randomUUID()
+        val createdAt = orderPayer.processPayment(orderId, order.price, paymentId, deadline)
+        orderRepository.save(order.copy(status = OrderStatus.PAYMENT_IN_PROGRESS))
+        return ResponseEntity.ok(PaymentSubmissionDto(createdAt, paymentId))
     }
+
+    @ExceptionHandler(RejectedExecutionException::class)
+    fun paymentQueueFull(): ResponseEntity<Void> = ResponseEntity
+        .status(HttpStatus.TOO_MANY_REQUESTS)
+        .header("Retry-After", "1")
+        .build()
 
     class PaymentSubmissionDto(val timestamp: Long, val transactionId: UUID)
 }

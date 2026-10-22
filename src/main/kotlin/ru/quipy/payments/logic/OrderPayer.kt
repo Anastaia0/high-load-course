@@ -1,111 +1,83 @@
 package ru.quipy.payments.logic
 
 import io.micrometer.core.instrument.Counter
+import io.micrometer.core.instrument.Gauge
 import io.micrometer.core.instrument.MeterRegistry
-import jakarta.annotation.PostConstruct
-import java.util.*
-import java.util.concurrent.PriorityBlockingQueue
-import java.util.concurrent.Semaphore
+import jakarta.annotation.PreDestroy
+import java.util.UUID
+import java.util.concurrent.RejectedExecutionException
 import java.util.concurrent.ThreadPoolExecutor
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicLong
-import org.slf4j.Logger
 import org.slf4j.LoggerFactory
-import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.stereotype.Service
-import ru.quipy.common.utils.CallerBlockingRejectedExecutionHandler
 import ru.quipy.common.utils.NamedThreadFactory
+import ru.quipy.common.utils.PaymentPriorityQueue
 import ru.quipy.common.utils.PaymentTask
 import ru.quipy.core.EventSourcingService
 import ru.quipy.payments.api.PaymentAggregate
 
 @Service
-class OrderPayer {
-
+class OrderPayer(
+    private val paymentESService: EventSourcingService<UUID, PaymentAggregate, PaymentAggregateState>,
+    private val paymentService: PaymentService,
+    meterRegistry: MeterRegistry,
+    @Value("\${payment.service-name}") serviceName: String,
+    @Value("\${payment.queue.capacity:110}") queueCapacity: Int,
+) {
     companion object {
-        val logger: Logger = LoggerFactory.getLogger(OrderPayer::class.java)
+        private val logger = LoggerFactory.getLogger(OrderPayer::class.java)
     }
 
-    @Autowired
-    private lateinit var paymentESService: EventSourcingService<UUID, PaymentAggregate, PaymentAggregateState>
-
-    @Autowired private lateinit var paymentService: PaymentService
-
-    @Autowired private lateinit var meterRegistry: MeterRegistry
-
-    @Value("\${payment.service-name}") private lateinit var serviceName: String
-
-    private lateinit var receivedPayments: Counter
-    private lateinit var completedPayments: Counter
-
-    @PostConstruct
-    fun registerMetrics() {
-        receivedPayments =
-            Counter.builder("shop.payment.received")
-                .description("Incoming payment requests before the queue")
-                .tag("service", serviceName)
-                .register(meterRegistry)
-        completedPayments =
-            Counter.builder("shop.payment.task.completed")
-                .description("Payment tasks finished locally, including failures and deadline rejections")
-                .tag("service", serviceName)
-                .register(meterRegistry)
-
-        io.micrometer.core.instrument.Gauge.builder("shop.payment.queue.size", paymentExecutor) { it.queue.size.toDouble() }
-            .description("Payment tasks waiting in the local executor queue")
-            .tag("service", serviceName)
-            .register(meterRegistry)
-    }
-
+    private val receivedPayments = Counter.builder("shop.payment.received")
+        .description("Incoming payment requests before admission")
+        .tag("service", serviceName).register(meterRegistry)
+    private val completedPayments = Counter.builder("shop.payment.task.completed")
+        .description("Payment tasks finished locally, including failures and deadline rejections")
+        .tag("service", serviceName).register(meterRegistry)
+    private val rejectedPayments = meterRegistry.counter("shop.payment.admission.rejected", "service", serviceName)
+    private val dispatchErrors = meterRegistry.counter("shop.payment.dispatch.errors", "service", serviceName)
     private val sequence = AtomicLong()
-    private val admissionSlots = Semaphore(10, true)
+    private val workers = paymentService.workerCount()
+    private val paymentExecutor = ThreadPoolExecutor(
+        workers, workers, 0L, TimeUnit.MILLISECONDS,
+        PaymentPriorityQueue(queueCapacity),
+        NamedThreadFactory("payment-submission-executor"),
+        ThreadPoolExecutor.AbortPolicy(),
+    )
 
-    fun tryReservePayment(): Boolean = admissionSlots.tryAcquire()
-
-    fun releasePaymentReservation() {
-        admissionSlots.release()
+    init {
+        Gauge.builder("shop.payment.queue.size", paymentExecutor) { it.queue.size.toDouble() }
+            .tag("service", serviceName).register(meterRegistry)
+        Gauge.builder("shop.payment.workers.active", paymentExecutor) { it.activeCount.toDouble() }
+            .tag("service", serviceName).register(meterRegistry)
+        paymentExecutor.prestartAllCoreThreads()
     }
 
-    private val paymentExecutor =
-        ThreadPoolExecutor(
-            5,
-            5,
-            0L,
-            TimeUnit.MILLISECONDS,
-            PriorityBlockingQueue<Runnable>(),
-            NamedThreadFactory("payment-submission-executor"),
-            CallerBlockingRejectedExecutionHandler()
-        )
+    @PreDestroy
+    fun shutdown() = paymentExecutor.shutdown()
 
     fun processPayment(orderId: UUID, amount: Int, paymentId: UUID, deadline: Long): Long {
-        val createdAt = System.currentTimeMillis()
+        val createdAt = now()
         receivedPayments.increment()
-
-        paymentExecutor.execute(
-            PaymentTask(
-                amount = amount,
-                deadline = deadline,
-                sequence = sequence.incrementAndGet()
-            ) {
-                try {
-                    val createdEvent = paymentESService.create { it.create(paymentId, orderId, amount) }
-
-                    logger.trace("Payment ${createdEvent.paymentId} for order $orderId created.")
-
-                    paymentService.submitPaymentRequest(paymentId, amount, createdAt, deadline)
-                } catch (e: Exception) {
-                    logger.error("Payment task failed for payment $paymentId", e)
-                } finally {
-                    try {
-                        completedPayments.increment()
-                    } finally {
-                        releasePaymentReservation()
-                    }
-                }
+        val task = PaymentTask(amount, paymentService.latestStart(deadline), sequence.incrementAndGet()) {
+            try {
+                paymentESService.create { it.create(paymentId, orderId, amount) }
+                paymentService.submitPaymentRequest(paymentId, amount, createdAt, deadline)
+            } catch (e: Exception) {
+                dispatchErrors.increment()
+                logger.error("Payment task failed for payment $paymentId", e)
+            } finally {
+                completedPayments.increment()
             }
-        )
-
+        }
+        try {
+            paymentExecutor.execute(task)
+        } catch (e: RejectedExecutionException) {
+            rejectedPayments.increment()
+            throw e
+        }
         return createdAt
     }
 }
