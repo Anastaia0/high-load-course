@@ -31,22 +31,22 @@ class APIController {
     @PostMapping("/orders")
     fun createOrder(@RequestParam userId: UUID, @RequestParam price: Int): Order {
         val order =
-                Order(
-                        UUID.randomUUID(),
-                        userId,
-                        System.currentTimeMillis(),
-                        OrderStatus.COLLECTING,
-                        price,
-                )
+            Order(
+                UUID.randomUUID(),
+                userId,
+                System.currentTimeMillis(),
+                OrderStatus.COLLECTING,
+                price,
+            )
         return orderRepository.save(order)
     }
 
     data class Order(
-            val id: UUID,
-            val userId: UUID,
-            val timeCreated: Long,
-            val status: OrderStatus,
-            val price: Int,
+        val id: UUID,
+        val userId: UUID,
+        val timeCreated: Long,
+        val status: OrderStatus,
+        val price: Int,
     )
 
     enum class OrderStatus {
@@ -57,10 +57,9 @@ class APIController {
 
     @PostMapping("/orders/{orderId}/payment")
     fun payOrder(
-            @PathVariable orderId: UUID,
-            @RequestParam deadline: Long
+        @PathVariable orderId: UUID,
+        @RequestParam deadline: Long
     ): ResponseEntity<PaymentSubmissionDto> {
-
         if (!orderPayer.tryReservePayment()) {
             return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS).build<PaymentSubmissionDto>()
         }
@@ -68,9 +67,8 @@ class APIController {
         var handedToWorker = false
 
         try {
-            val order =
-                    orderRepository.findById(orderId)
-                            ?: throw IllegalArgumentException("No such order $orderId")
+            val order = orderRepository.findById(orderId)
+                ?: throw IllegalArgumentException("No such order $orderId")
 
             val paymentId = UUID.randomUUID()
 
@@ -82,8 +80,6 @@ class APIController {
 
             return ResponseEntity.ok(PaymentSubmissionDto(createdAt, paymentId))
         } finally {
-            // Если задача не передана обработчику,
-            // контроллер сам возвращает зарезервированное место.
             if (!handedToWorker) {
                 orderPayer.releasePaymentReservation()
             }

@@ -15,13 +15,11 @@ import ru.quipy.common.utils.SlidingWindowRateLimiter
 import ru.quipy.core.EventSourcingService
 import ru.quipy.payments.api.PaymentAggregate
 
-// Advice: always treat time as a Duration
 class PaymentExternalSystemAdapterImpl(
-        private val properties: PaymentAccountProperties,
-        private val paymentESService:
-                EventSourcingService<UUID, PaymentAggregate, PaymentAggregateState>,
-        private val paymentProviderHostPort: String,
-        private val token: String,
+    private val properties: PaymentAccountProperties,
+    private val paymentESService: EventSourcingService<UUID, PaymentAggregate, PaymentAggregateState>,
+    private val paymentProviderHostPort: String,
+    private val token: String,
 ) : PaymentExternalSystemAdapter {
 
     companion object {
@@ -37,33 +35,22 @@ class PaymentExternalSystemAdapterImpl(
     private val rateLimitPerSec = properties.rateLimitPerSec
     private val parallelRequests = properties.parallelRequests
 
-    // Space requests evenly, leaving a small margin for scheduling and network jitter.
     private val rateLimiter =
-            SlidingWindowRateLimiter(1, Duration.ofMillis(1000L / rateLimitPerSec + 10))
+        SlidingWindowRateLimiter(1, Duration.ofMillis(1000L / rateLimitPerSec + 10))
     private val paymentSemaphore = Semaphore(parallelRequests, true)
     private val client =
-            OkHttpClient.Builder()
-                    .readTimeout(0, TimeUnit.MILLISECONDS)
-                    .retryOnConnectionFailure(false)
-                    .build()
+        OkHttpClient.Builder()
+            .readTimeout(0, TimeUnit.MILLISECONDS)
+            .retryOnConnectionFailure(false)
+            .build()
 
-    override fun performPaymentAsync(
-            paymentId: UUID,
-            amount: Int,
-            paymentStartedAt: Long,
-            deadline: Long
-    ) {
+    override fun performPaymentAsync(paymentId: UUID, amount: Int, paymentStartedAt: Long, deadline: Long) {
         val latestStart = deadline - requestAverageProcessingTime.toMillis()
 
-        // Ждём разрешение частоты только пока остаётся время.
         try {
             while (true) {
                 if (now() >= latestStart) {
-                    rejectPayment(
-                            paymentId,
-                            paymentStartedAt,
-                            "Not enough time before payment deadline."
-                    )
+                    rejectPayment(paymentId, paymentStartedAt, "Not enough time before payment deadline.")
                     return
                 }
 
@@ -80,39 +67,23 @@ class PaymentExternalSystemAdapterImpl(
             return
         }
 
-        val acquired =
-                try {
-                    val remainingMillis = latestStart - now()
-
-                    remainingMillis > 0 &&
-                            paymentSemaphore.tryAcquire(remainingMillis, TimeUnit.MILLISECONDS)
-                } catch (e: InterruptedException) {
-                    Thread.currentThread().interrupt()
-
-                    rejectPayment(
-                            paymentId,
-                            paymentStartedAt,
-                            "Interrupted while waiting for provider slot."
-                    )
-                    return
-                }
+        val acquired = try {
+            val remainingMillis = latestStart - now()
+            remainingMillis > 0 && paymentSemaphore.tryAcquire(remainingMillis, TimeUnit.MILLISECONDS)
+        } catch (e: InterruptedException) {
+            Thread.currentThread().interrupt()
+            rejectPayment(paymentId, paymentStartedAt, "Interrupted while waiting for provider slot.")
+            return
+        }
 
         if (!acquired) {
-            rejectPayment(
-                    paymentId,
-                    paymentStartedAt,
-                    "Deadline exceeded while waiting for provider slot."
-            )
+            rejectPayment(paymentId, paymentStartedAt, "Deadline exceeded while waiting for provider slot.")
             return
         }
 
         try {
             if (now() >= latestStart) {
-                rejectPayment(
-                        paymentId,
-                        paymentStartedAt,
-                        "Not enough time after waiting for provider slot."
-                )
+                rejectPayment(paymentId, paymentStartedAt, "Not enough time after waiting for provider slot.")
                 return
             }
 
@@ -122,50 +93,31 @@ class PaymentExternalSystemAdapterImpl(
         }
     }
 
-    private fun performPayment(
-            paymentId: UUID,
-            amount: Int,
-            paymentStartedAt: Long,
-            latestStart: Long
-    ) {
+    private fun performPayment(paymentId: UUID, amount: Int, paymentStartedAt: Long, latestStart: Long) {
         logger.warn("[$accountName] Submitting payment request for payment $paymentId")
 
         val transactionId = UUID.randomUUID()
 
-        // Вне зависимости от исхода оплаты важно отметить что она была отправлена.
-        // Это требуется сделать ВО ВСЕХ СЛУЧАЯХ, поскольку эта информация используется сервисом
-        // тестирования.
         paymentESService.update(paymentId) {
-            it.logSubmission(
-                    success = true,
-                    transactionId,
-                    now(),
-                    Duration.ofMillis(now() - paymentStartedAt)
-            )
+            it.logSubmission(success = true, transactionId, now(), Duration.ofMillis(now() - paymentStartedAt))
         }
 
         logger.info("[$accountName] Submit: $paymentId , txId: $transactionId")
 
         try {
             val request =
-                    Request.Builder()
-                            .run {
-                                url(
-                                        "http://$paymentProviderHostPort/external/process?serviceName=$serviceName&token=$token&accountName=$accountName&transactionId=$transactionId&paymentId=$paymentId&amount=$amount"
-                                )
-                                post(emptyBody)
-                            }
-                            .build()
+                Request.Builder()
+                    .run {
+                        url(
+                            "http://$paymentProviderHostPort/external/process?serviceName=$serviceName&token=$token&accountName=$accountName&transactionId=$transactionId&paymentId=$paymentId&amount=$amount"
+                        )
+                        post(emptyBody)
+                    }
+                    .build()
 
-            // Создание запроса и запись submission тоже занимают время.
             if (now() >= latestStart) {
                 paymentESService.update(paymentId) {
-                    it.logProcessing(
-                            false,
-                            now(),
-                            transactionId,
-                            reason = "Not enough time before HTTP call."
-                    )
+                    it.logProcessing(false, now(), transactionId, reason = "Not enough time before HTTP call.")
                 }
                 return
             }
@@ -174,21 +126,16 @@ class PaymentExternalSystemAdapterImpl(
             val paymentDeadline = latestStart + requestAverageProcessingTime.toMillis()
 
             logger.info(
-                    "[$accountName] Sending payment: paymentId=$paymentId, " +
-                            "waitBeforeHttpMs=${sendingAt - paymentStartedAt}, " +
-                            "remainingBeforeDeadlineMs=${paymentDeadline - sendingAt}"
+                "[$accountName] Sending payment: paymentId=$paymentId, " +
+                    "waitBeforeHttpMs=${sendingAt - paymentStartedAt}, " +
+                    "remainingBeforeDeadlineMs=${paymentDeadline - sendingAt}"
             )
 
             val remainingMillis = paymentDeadline - now()
 
             if (remainingMillis <= 0L) {
                 paymentESService.update(paymentId) {
-                    it.logProcessing(
-                            false,
-                            now(),
-                            transactionId,
-                            reason = "Payment deadline exceeded before HTTP call."
-                    )
+                    it.logProcessing(false, now(), transactionId, reason = "Payment deadline exceeded before HTTP call.")
                 }
                 return
             }
@@ -199,32 +146,21 @@ class PaymentExternalSystemAdapterImpl(
             call.execute().use { response ->
                 val rawBody = response.body?.string()
 
-                val body =
-                        try {
-                            mapper.readValue(rawBody, ExternalSysResponse::class.java)
-                        } catch (e: Exception) {
-                            logger.error(
-                                    "[$accountName] Invalid provider response: " +
-                                            "payment=$paymentId, HTTP=${response.code}",
-                                    e
-                            )
-
-                            ExternalSysResponse(
-                                    transactionId.toString(),
-                                    paymentId.toString(),
-                                    false,
-                                    e.message
-                            )
-                        }
+                val body = try {
+                    mapper.readValue(rawBody, ExternalSysResponse::class.java)
+                } catch (e: Exception) {
+                    logger.error(
+                        "[$accountName] Invalid provider response: payment=$paymentId, HTTP=${response.code}",
+                        e
+                    )
+                    ExternalSysResponse(transactionId.toString(), paymentId.toString(), false, e.message)
+                }
 
                 logger.warn(
-                        "[$accountName] Payment processed for txId: $transactionId, payment: $paymentId, succeeded: ${body.result}, message: ${body.message}"
+                    "[$accountName] Payment processed for txId: $transactionId, payment: $paymentId, " +
+                        "succeeded: ${body.result}, message: ${body.message}"
                 )
 
-                // Здесь мы обновляем состояние оплаты в зависимости от результата в базе данных
-                // оплат.
-                // Это требуется сделать ВО ВСЕХ ИСХОДАХ (успешная оплата / неуспешная / ошибочная
-                // ситуация)
                 paymentESService.update(paymentId) {
                     it.logProcessing(body.result, now(), transactionId, reason = body.message)
                 }
@@ -233,8 +169,8 @@ class PaymentExternalSystemAdapterImpl(
             when (e) {
                 is SocketTimeoutException -> {
                     logger.error(
-                            "[$accountName] Payment timeout for txId: $transactionId, payment: $paymentId",
-                            e
+                        "[$accountName] Payment timeout for txId: $transactionId, payment: $paymentId",
+                        e
                     )
                     paymentESService.update(paymentId) {
                         it.logProcessing(false, now(), transactionId, reason = "Request timeout.")
@@ -242,8 +178,8 @@ class PaymentExternalSystemAdapterImpl(
                 }
                 else -> {
                     logger.error(
-                            "[$accountName] Payment failed for txId: $transactionId, payment: $paymentId",
-                            e
+                        "[$accountName] Payment failed for txId: $transactionId, payment: $paymentId",
+                        e
                     )
 
                     paymentESService.update(paymentId) {
@@ -265,19 +201,14 @@ class PaymentExternalSystemAdapterImpl(
         val rejectedAt = now()
 
         logger.warn(
-                "[$accountName] Payment rejected locally: " +
-                        "paymentId=$paymentId, " +
-                        "elapsedMs=${rejectedAt - paymentStartedAt}, " +
-                        "reason=$reason"
+            "[$accountName] Payment rejected locally: " +
+                "paymentId=$paymentId, " +
+                "elapsedMs=${rejectedAt - paymentStartedAt}, " +
+                "reason=$reason"
         )
 
         paymentESService.update(paymentId) {
-            it.logSubmission(
-                    false,
-                    transactionId,
-                    rejectedAt,
-                    Duration.ofMillis(rejectedAt - paymentStartedAt)
-            )
+            it.logSubmission(false, transactionId, rejectedAt, Duration.ofMillis(rejectedAt - paymentStartedAt))
         }
 
         paymentESService.update(paymentId) {
