@@ -1,0 +1,65 @@
+{
+  "case": 4,
+  "repository": "Anastaia0/high-load-course",
+  "branch": "case-4",
+  "testedSha": "a9884393c433343f623fb9ef9f56582bdea07b84",
+  "baseBranch": "case-3-fix",
+  "baseSha": "4754cbcb25cc3b45203c81a1e05f94b11ef9c2d4",
+  "service": "glekler_02",
+  "account": "acc-18",
+  "parameters": {
+    "ratePerSecond": 200,
+    "testCount": 6000,
+    "processingTimeMillis": 3000,
+    "onPremises": true
+  },
+  "accountLimits": {
+    "rateLimitPerSec": 110,
+    "parallelRequests": 10000,
+    "averageProcessingTimeMillis": 1000
+  },
+  "workerCount": 111,
+  "queueCapacity": 110,
+  "requestedAt": "2026-10-22T15:38:41.628754Z",
+  "runnerRespondedAt": "2026-10-22T15:39:34.440237Z",
+  "containerId": "4787c855c45f1cdf0145fa8833dc9ad17ede364742f467e09767374086859513",
+  "image": "glekler_02-1792683523",
+  "window": {
+    "from": "2026-10-22T15:39:00.000Z",
+    "to": "2026-10-22T15:42:00.000Z",
+    "timezone": "Europe/Moscow",
+    "fromEpochMs": 1792683540000,
+    "toEpochMs": 1792683720000
+  },
+  "outcomes": {
+    "success": 5780,
+    "fail": 182,
+    "recordedTotal": 5962,
+    "configuredCountWithoutRecordedOutcome": 38,
+    "clientTimeout": 177,
+    "timeout": 5
+  },
+  "httpAttempts": {
+    "createOrderOk": 11145,
+    "payOrderOk": 5962,
+    "payOrder429": 5183
+  },
+  "provider": {
+    "success": 5861,
+    "rateLimitBreached": 3,
+    "total": 5864
+  },
+  "financials": {
+    "income": 2406529,
+    "expenses": 175920,
+    "difference": 2230609
+  },
+  "measurement": "Instant Prometheus counter difference at the selected end time versus offset 3m; missing starting series treated as zero. HTTP attempts are not unique test outcomes.",
+  "grafana": "http://77.234.215.138:33000/d/KVr-Vmpnz/services-statistic?orgId=1&from=1792683540000&to=1792683720000&timezone=Europe%2FMoscow&var-service=glekler_02",
+  "logs": "http://77.234.215.138:34321/logs/4787c855c45f1cdf0145fa8833dc9ad17ede364742f467e09767374086859513?tail=500",
+  "screenshots": [
+    "general.jpg",
+    "tests.jpg",
+    "http.jpg"
+  ]
+}
