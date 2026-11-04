@@ -45,6 +45,8 @@ class SlidingWindowRateLimiter(
         }
     }
 
+    fun currentCount(): Long = permitsInWindow.get()
+
     private val releaseJob = rateLimiterScope.launch {
         while (true) {
             val oldestRequest = acceptedRequests.peek()
