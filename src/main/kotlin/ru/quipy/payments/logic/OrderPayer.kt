@@ -11,6 +11,7 @@ import ru.quipy.payments.api.PaymentAggregate
 import ru.quipy.payments.logic.payment.service.PaymentService
 import java.util.*
 import java.util.concurrent.LinkedBlockingQueue
+import java.util.concurrent.ThreadLocalRandom
 import java.util.concurrent.ThreadPoolExecutor
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
@@ -20,9 +21,12 @@ class OrderPayer {
     companion object {
         val logger: Logger = LoggerFactory.getLogger(OrderPayer::class.java)
 
-        private const val IN_FLIGHT_FACTOR = 0.7
-        private const val MIN_RETRY_AFTER_MS = 500L
-        private const val MAX_RETRY_AFTER_MS = 5000L
+        private const val IN_FLIGHT_FACTOR = 0.6
+        private const val MIN_RETRY_AFTER_MS = 200L
+        private const val MAX_RETRY_AFTER_MS = 200L
+        private const val PAYMENT_CORE_EXECUTOR_THREADS = 128
+        private const val PAYMENT_MAX_EXECUTOR_THREADS = 256
+        private const val PAYMENT_EXECUTOR_KEEP_ALIVE_SECONDS = 60L
     }
 
     @Autowired
@@ -32,9 +36,9 @@ class OrderPayer {
     private lateinit var paymentService: PaymentService
 
     private val paymentExecutor = ThreadPoolExecutor(
-        16,
-        16,
-        0L,
+        PAYMENT_CORE_EXECUTOR_THREADS,
+        PAYMENT_MAX_EXECUTOR_THREADS,
+        PAYMENT_EXECUTOR_KEEP_ALIVE_SECONDS,
         TimeUnit.MILLISECONDS,
         LinkedBlockingQueue(8_000),
         NamedThreadFactory("payment-submission-executor"),
@@ -43,58 +47,63 @@ class OrderPayer {
 
     private val paymentsInFlight = AtomicInteger(0)
 
-    fun canAcceptPayment(deadline: Long): Boolean {
+    fun tryReserveSlot(deadline: Long): Boolean {
         val remainingMs = deadline - System.currentTimeMillis()
         if (remainingMs <= 0) return false
-
         val throughputPerMs = paymentService.totalThroughputPerMs()
         if (throughputPerMs <= 0.0) return false
+        val averageProcessingMillis = paymentService.averageProcessingTimeMs()
+        if (averageProcessingMillis <= 0) return false
 
-        val capacity = (throughputPerMs * remainingMs * IN_FLIGHT_FACTOR).toLong()
-        val current = paymentsInFlight.get()
+        val providerCapacity = (throughputPerMs * remainingMs).toLong()
+        val workerCapacity = PAYMENT_CORE_EXECUTOR_THREADS * remainingMs / averageProcessingMillis
 
-        val canAccept = current < capacity
-        if (!canAccept) {
-            logger.debug(
-                "Rejecting payment: inFlight={}, capacity={}, remainingMs={}, throughputPerMs={}",
-                current, capacity, remainingMs, throughputPerMs
-            )
+        val capacity = (minOf(providerCapacity, workerCapacity) * IN_FLIGHT_FACTOR).toLong()
+        if (capacity <= 0) return false
+
+        while (true) {
+            val current = paymentsInFlight.get()
+            if (current >= capacity) return false
+            if (paymentsInFlight.compareAndSet(current, current + 1)) return true
         }
-        return canAccept
     }
 
     fun retryAfterMs(deadline: Long): Long {
         val remainingMs = deadline - System.currentTimeMillis()
         if (remainingMs <= 0) return MIN_RETRY_AFTER_MS
-
         val throughputPerMs = paymentService.totalThroughputPerMs()
         if (throughputPerMs <= 0.0) return MIN_RETRY_AFTER_MS
+        val averageProcessingMillis = paymentService.averageProcessingTimeMs()
+        if (averageProcessingMillis <= 0) return MIN_RETRY_AFTER_MS
 
-        val capacity = (throughputPerMs * remainingMs * IN_FLIGHT_FACTOR).toLong()
-        val inFlight = paymentsInFlight.get()
-        val excess = (inFlight - capacity).coerceAtLeast(1L)
+        val providerCapacity = (throughputPerMs * remainingMs).toLong()
+        val workerCapacity = PAYMENT_CORE_EXECUTOR_THREADS * remainingMs / averageProcessingMillis
 
+        val capacity = (minOf(providerCapacity, workerCapacity) * IN_FLIGHT_FACTOR).toLong()
+        val excess = (paymentsInFlight.get() - capacity).coerceAtLeast(1L)
         val waitMs = (excess / throughputPerMs).toLong()
-        return waitMs.coerceIn(MIN_RETRY_AFTER_MS, MAX_RETRY_AFTER_MS)
+
+        val maxAllowed = (remainingMs - 200L).coerceAtLeast(MIN_RETRY_AFTER_MS)
+        return waitMs.coerceIn(MIN_RETRY_AFTER_MS, minOf(MAX_RETRY_AFTER_MS, maxAllowed)) + ThreadLocalRandom.current().nextLong(0L, 100L)
     }
 
     fun processPayment(orderId: UUID, amount: Int, paymentId: UUID, deadline: Long): Long {
         val createdAt = System.currentTimeMillis()
-        paymentsInFlight.incrementAndGet()
-        paymentExecutor.submit {
-            try {
-                val paymentCreated = paymentESService.create {
-                    it.create(
-                        paymentId,
-                        orderId,
-                        amount
-                    )
+        try {
+            paymentExecutor.submit {
+                try {
+                    val paymentCreated = paymentESService.create {
+                        it.create(paymentId, orderId, amount)
+                    }
+                    logger.trace("Payment {} for order {} created.", paymentCreated.paymentId, orderId)
+                    paymentService.submitPaymentRequest(paymentId, amount, createdAt, deadline)
+                } finally {
+                    paymentsInFlight.decrementAndGet()
                 }
-                logger.trace("Payment {} for order {} created.", paymentCreated.paymentId, orderId)
-                paymentService.submitPaymentRequest(paymentId, amount, createdAt, deadline)
-            } finally {
-                paymentsInFlight.decrementAndGet()
             }
+        } catch (e: Exception) {
+            paymentsInFlight.decrementAndGet()
+            throw e
         }
         return createdAt
     }
