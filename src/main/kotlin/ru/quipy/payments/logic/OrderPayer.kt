@@ -21,7 +21,7 @@ class OrderPayer {
     companion object {
         val logger: Logger = LoggerFactory.getLogger(OrderPayer::class.java)
 
-        private const val IN_FLIGHT_FACTOR = 0.6
+        private const val QUEUE_CAPACITY_FACTOR = 0.9
         private const val MIN_RETRY_AFTER_MS = 200L
         private const val MAX_RETRY_AFTER_MS = 200L
         private const val PAYMENT_CORE_EXECUTOR_THREADS = 128
@@ -61,7 +61,7 @@ class OrderPayer {
         val providerCapacity = (throughputPerMs * queueBudgetMs).toLong()
         val workerCapacity = PAYMENT_CORE_EXECUTOR_THREADS * queueBudgetMs / averageProcessingMillis
 
-        val capacity = (minOf(providerCapacity, workerCapacity) * IN_FLIGHT_FACTOR).toLong()
+        val capacity = (minOf(providerCapacity, workerCapacity) * QUEUE_CAPACITY_FACTOR).toLong()
         if (capacity <= 0) return false
 
         while (true) {
@@ -83,7 +83,7 @@ class OrderPayer {
         val providerCapacity = (throughputPerMs * queueBudgetMs).toLong()
         val workerCapacity = PAYMENT_CORE_EXECUTOR_THREADS * queueBudgetMs / averageProcessingMillis
 
-        val capacity = (minOf(providerCapacity, workerCapacity) * IN_FLIGHT_FACTOR).toLong()
+        val capacity = (minOf(providerCapacity, workerCapacity) * QUEUE_CAPACITY_FACTOR).toLong()
         val excess = (paymentsInFlight.get() - capacity).coerceAtLeast(1L)
         val waitMs = (excess / throughputPerMs).toLong()
 
