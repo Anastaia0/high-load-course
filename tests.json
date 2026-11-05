@@ -217,7 +217,7 @@
     "hw-05-2": {
       "serviceName": "{{serviceName}}",
       "token": "{{token}}",
-      "branch": "hw-05",
+      "branch": "hw-05-test-2",
       "accounts": "acc-23",
       "ratePerSecond": 11,
       "testCount": 2200,

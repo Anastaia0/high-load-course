@@ -10,7 +10,7 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody
 import org.slf4j.LoggerFactory
-import ru.quipy.common.utils.ratelimiter.implementation.SlidingWindowRateLimiter
+import ru.quipy.common.utils.ratelimiter.implementation.LeakingBucketRateLimiter
 import ru.quipy.common.utils.window.OngoingWindow
 import ru.quipy.core.EventSourcingService
 import ru.quipy.payments.api.PaymentAggregate
@@ -46,9 +46,10 @@ class PaymentExternalServiceAdapterImpl(
     private val rateLimitPerSec = properties.rateLimitPerSec
     private val parallelRequests = properties.parallelRequests
 
-    private val rateLimiter = SlidingWindowRateLimiter(
+    private val rateLimiter = LeakingBucketRateLimiter(
         rate = rateLimitPerSec.toLong(),
         window = Duration.ofSeconds(1),
+        bucketSize = parallelRequests * 2,
     )
 
     private val parallelWindow = OngoingWindow(parallelRequests)
