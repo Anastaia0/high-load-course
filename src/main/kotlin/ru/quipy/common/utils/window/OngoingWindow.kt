@@ -5,7 +5,7 @@ import java.util.concurrent.Semaphore
 import java.util.concurrent.TimeUnit
 
 class OngoingWindow(maxWinSize: Int) {
-    private val window = Semaphore(maxWinSize)
+    private val window = Semaphore(maxWinSize, true)
 
     fun acquire() {
         window.acquire()

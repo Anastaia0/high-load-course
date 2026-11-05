@@ -1,4 +1,4 @@
-### Run test remotely
+### Run HW 05 test 2 remotely
 # @timeout 120
 POST http://77.234.215.138:34321/run
 Content-Type: application/json
@@ -8,9 +8,10 @@ Content-Type: application/json
   "token": "{{token}}",
   "branch": "hw-05",
   "accounts": "acc-23",
-  "ratePerSecond": 15,
-  "testCount": 3000,
-  "processingTimeMillis": 2500
+  "ratePerSecond": 11,
+  "testCount": 2200,
+  "processingTimeMillis": 13000,
+  "profile": "s_0.7_60"
 }
 
 ### Stop running test to save credits

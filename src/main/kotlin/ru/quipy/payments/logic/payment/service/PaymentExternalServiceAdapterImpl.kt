@@ -10,7 +10,7 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody
 import org.slf4j.LoggerFactory
-import ru.quipy.common.utils.ratelimiter.implementation.SlidingWindowRateLimiter
+import ru.quipy.common.utils.ratelimiter.implementation.LeakingBucketRateLimiter
 import ru.quipy.common.utils.window.OngoingWindow
 import ru.quipy.core.EventSourcingService
 import ru.quipy.payments.api.PaymentAggregate
@@ -46,9 +46,10 @@ class PaymentExternalServiceAdapterImpl(
     private val rateLimitPerSec = properties.rateLimitPerSec
     private val parallelRequests = properties.parallelRequests
 
-    private val rateLimiter = SlidingWindowRateLimiter(
+    private val rateLimiter = LeakingBucketRateLimiter(
         rate = rateLimitPerSec.toLong(),
         window = Duration.ofSeconds(1),
+        bucketSize = 1,
     )
 
     private val parallelWindow = OngoingWindow(parallelRequests)
@@ -169,16 +170,20 @@ class PaymentExternalServiceAdapterImpl(
                 Thread.sleep(RETRY_BACKOFF_MS)
                 continue
             }
-            rateWaitCounter.increment()
-            if (!rateLimiter.tickBlocking(permitWaitTimeout)) {
-                logger.warn("[$accountName] Rate limit wait timeout for payment $paymentId, will retry")
-                rateTimeoutCounter.increment()
-                parallelWindow.release()
-                Thread.sleep(RETRY_BACKOFF_MS)
-                continue
-            }
 
             try {
+                val remainingForRateLimit = deadline - now()
+                if (remainingForRateLimit <= 0) continue
+
+                rateWaitCounter.increment()
+                if (!rateLimiter.tickBlocking(Duration.ofMillis(remainingForRateLimit))) {
+                    logger.warn("[$accountName] Rate limit wait timeout for payment $paymentId")
+                    rateTimeoutCounter.increment()
+                    continue
+                }
+
+                if (now() >= deadline) continue
+
                 outgoingRequestsCounter.increment()
                 httpClient.newCall(request).execute().use { response ->
                     val rawBody = response.body?.string()
