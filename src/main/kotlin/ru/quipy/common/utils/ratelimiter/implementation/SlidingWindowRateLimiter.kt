@@ -45,7 +45,7 @@ class SlidingWindowRateLimiter(
         }
     }
 
-    fun currentCount(): Long = permitsInWindow.get()
+    override fun currentCount(): Long = permitsInWindow.get()
 
     private val releaseJob = rateLimiterScope.launch {
         while (true) {
