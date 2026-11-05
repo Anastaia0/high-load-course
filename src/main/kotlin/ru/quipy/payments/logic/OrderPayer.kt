@@ -55,8 +55,11 @@ class OrderPayer {
         val averageProcessingMillis = paymentService.averageProcessingTimeMs()
         if (averageProcessingMillis <= 0) return false
 
-        val providerCapacity = (throughputPerMs * remainingMs).toLong()
-        val workerCapacity = PAYMENT_CORE_EXECUTOR_THREADS * remainingMs / averageProcessingMillis
+        val queueBudgetMs = remainingMs - averageProcessingMillis
+        if (queueBudgetMs <= 0) return false
+
+        val providerCapacity = (throughputPerMs * queueBudgetMs).toLong()
+        val workerCapacity = PAYMENT_CORE_EXECUTOR_THREADS * queueBudgetMs / averageProcessingMillis
 
         val capacity = (minOf(providerCapacity, workerCapacity) * IN_FLIGHT_FACTOR).toLong()
         if (capacity <= 0) return false
@@ -76,8 +79,9 @@ class OrderPayer {
         val averageProcessingMillis = paymentService.averageProcessingTimeMs()
         if (averageProcessingMillis <= 0) return MIN_RETRY_AFTER_MS
 
-        val providerCapacity = (throughputPerMs * remainingMs).toLong()
-        val workerCapacity = PAYMENT_CORE_EXECUTOR_THREADS * remainingMs / averageProcessingMillis
+        val queueBudgetMs = (remainingMs - averageProcessingMillis).coerceAtLeast(0L)
+        val providerCapacity = (throughputPerMs * queueBudgetMs).toLong()
+        val workerCapacity = PAYMENT_CORE_EXECUTOR_THREADS * queueBudgetMs / averageProcessingMillis
 
         val capacity = (minOf(providerCapacity, workerCapacity) * IN_FLIGHT_FACTOR).toLong()
         val excess = (paymentsInFlight.get() - capacity).coerceAtLeast(1L)
