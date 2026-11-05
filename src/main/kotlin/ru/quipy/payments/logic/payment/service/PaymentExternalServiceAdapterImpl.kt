@@ -10,6 +10,7 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody
 import org.slf4j.LoggerFactory
+import ru.quipy.common.utils.ratelimiter.implementation.PacedRateLimiter
 import ru.quipy.common.utils.ratelimiter.implementation.SlidingWindowRateLimiter
 import ru.quipy.common.utils.window.OngoingWindow
 import ru.quipy.core.EventSourcingService
@@ -47,6 +48,11 @@ class PaymentExternalServiceAdapterImpl(
     private val parallelRequests = properties.parallelRequests
 
     private val rateLimiter = SlidingWindowRateLimiter(
+        rate = rateLimitPerSec.toLong(),
+        window = Duration.ofSeconds(1),
+    )
+
+    private val requestPacer = PacedRateLimiter(
         rate = rateLimitPerSec.toLong(),
         window = Duration.ofSeconds(1),
     )
@@ -169,16 +175,20 @@ class PaymentExternalServiceAdapterImpl(
                 Thread.sleep(RETRY_BACKOFF_MS)
                 continue
             }
-            rateWaitCounter.increment()
-            if (!rateLimiter.tickBlocking(permitWaitTimeout)) {
-                logger.warn("[$accountName] Rate limit wait timeout for payment $paymentId, will retry")
-                rateTimeoutCounter.increment()
-                parallelWindow.release()
-                Thread.sleep(RETRY_BACKOFF_MS)
-                continue
-            }
-
             try {
+                rateWaitCounter.increment()
+                val pacingBudget = deadline - now()
+                if (pacingBudget <= 0 || !requestPacer.tickBlocking(Duration.ofMillis(pacingBudget))) {
+                    rateTimeoutCounter.increment()
+                    continue
+                }
+                val rateBudget = deadline - now()
+                if (rateBudget <= 0 || !rateLimiter.tickBlocking(Duration.ofMillis(rateBudget))) {
+                    rateTimeoutCounter.increment()
+                    continue
+                }
+                if (now() >= deadline) continue
+
                 outgoingRequestsCounter.increment()
                 httpClient.newCall(request).execute().use { response ->
                     val rawBody = response.body?.string()

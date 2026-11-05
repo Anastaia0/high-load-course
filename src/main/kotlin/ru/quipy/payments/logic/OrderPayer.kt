@@ -21,7 +21,7 @@ class OrderPayer {
     companion object {
         val logger: Logger = LoggerFactory.getLogger(OrderPayer::class.java)
 
-        private const val QUEUE_CAPACITY_FACTOR = 0.9
+        private const val QUEUE_CAPACITY_FACTOR = 0.7
         private const val MIN_RETRY_AFTER_MS = 200L
         private const val MAX_RETRY_AFTER_MS = 200L
         private const val PAYMENT_CORE_EXECUTOR_THREADS = 128
