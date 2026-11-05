@@ -20,7 +20,7 @@ class LeakingBucketRateLimiter(
 ) : RateLimiter {
     private val rateLimiterScope = CoroutineScope(Executors.newSingleThreadExecutor().asCoroutineDispatcher())
     private val permitIntervalMillis = window.toMillis() / rate
-    private val semaphore = Semaphore(bucketSize)
+    private val semaphore = Semaphore(bucketSize, true)
 
     init {
         repeat(bucketSize) {

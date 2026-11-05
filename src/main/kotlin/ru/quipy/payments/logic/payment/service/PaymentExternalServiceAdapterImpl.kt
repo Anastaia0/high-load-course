@@ -170,16 +170,20 @@ class PaymentExternalServiceAdapterImpl(
                 Thread.sleep(RETRY_BACKOFF_MS)
                 continue
             }
-            rateWaitCounter.increment()
-            if (!rateLimiter.tickBlocking(permitWaitTimeout)) {
-                logger.warn("[$accountName] Rate limit wait timeout for payment $paymentId, will retry")
-                rateTimeoutCounter.increment()
-                parallelWindow.release()
-                Thread.sleep(RETRY_BACKOFF_MS)
-                continue
-            }
 
             try {
+                val remainingForRateLimit = deadline - now()
+                if (remainingForRateLimit <= 0) continue
+
+                rateWaitCounter.increment()
+                if (!rateLimiter.tickBlocking(Duration.ofMillis(remainingForRateLimit))) {
+                    logger.warn("[$accountName] Rate limit wait timeout for payment $paymentId")
+                    rateTimeoutCounter.increment()
+                    continue
+                }
+
+                if (now() >= deadline) continue
+
                 outgoingRequestsCounter.increment()
                 httpClient.newCall(request).execute().use { response ->
                     val rawBody = response.body?.string()
