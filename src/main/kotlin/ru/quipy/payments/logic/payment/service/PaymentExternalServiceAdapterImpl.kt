@@ -49,7 +49,7 @@ class PaymentExternalServiceAdapterImpl(
     private val rateLimiter = LeakingBucketRateLimiter(
         rate = rateLimitPerSec.toLong(),
         window = Duration.ofSeconds(1),
-        bucketSize = parallelRequests * 2,
+        bucketSize = 1,
     )
 
     private val parallelWindow = OngoingWindow(parallelRequests)

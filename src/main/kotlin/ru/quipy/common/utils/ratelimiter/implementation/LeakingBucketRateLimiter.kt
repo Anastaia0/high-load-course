@@ -11,6 +11,7 @@ import java.time.Duration
 import java.util.concurrent.Executors
 import java.util.concurrent.Semaphore
 import java.util.concurrent.TimeUnit
+import kotlin.math.ceil
 import kotlin.time.Duration.Companion.milliseconds
 
 class LeakingBucketRateLimiter(
@@ -19,14 +20,8 @@ class LeakingBucketRateLimiter(
     private val bucketSize: Int,
 ) : RateLimiter {
     private val rateLimiterScope = CoroutineScope(Executors.newSingleThreadExecutor().asCoroutineDispatcher())
-    private val permitIntervalMillis = window.toMillis() / rate
-    private val semaphore = Semaphore(bucketSize, true)
-
-    init {
-        repeat(bucketSize) {
-            semaphore.acquireUninterruptibly()
-        }
-    }
+    private val permitIntervalMillis = ceil(window.toMillis().toDouble() / rate).toLong().coerceAtLeast(1L)
+    private val semaphore = Semaphore(0, true)
 
     override fun currentCount(): Long = (bucketSize - semaphore.availablePermits()).toLong()
 
@@ -45,7 +40,9 @@ class LeakingBucketRateLimiter(
     private val releaseJob = rateLimiterScope.launch {
         while (true) {
             delay(permitIntervalMillis.milliseconds)
-            semaphore.release()
+            if (semaphore.availablePermits() < bucketSize) {
+                semaphore.release()
+            }
         }
     }.invokeOnCompletion { th -> if (th != null) logger.error("Rate limiter release job completed", th) }
 
