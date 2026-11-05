@@ -1,4 +1,4 @@
-### Run HW 05 test 2 remotely
+### Run test remotely
 # @timeout 120
 POST http://77.234.215.138:34321/run
 Content-Type: application/json
