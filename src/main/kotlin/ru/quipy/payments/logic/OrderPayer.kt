@@ -105,20 +105,60 @@ class OrderPayer {
         val createdAt = System.currentTimeMillis()
         try {
             paymentExecutor.submit {
-                try {
-                    val paymentCreated = paymentESService.create {
-                        it.create(paymentId, orderId, amount)
-                    }
-                    logger.trace("Payment {} for order {} created.", paymentCreated.paymentId, orderId)
-                    paymentService.submitPaymentRequest(paymentId, amount, createdAt, deadline)
-                } finally {
-                    paymentsInFlight.decrementAndGet()
-                }
+                runPaymentAttempt(paymentId, orderId, amount, createdAt, deadline)
             }
         } catch (e: Exception) {
             paymentsInFlight.decrementAndGet()
             throw e
         }
         return createdAt
+    }
+
+    private fun runPaymentAttempt(
+        paymentId: UUID,
+        orderId: UUID,
+        amount: Int,
+        createdAt: Long,
+        deadline: Long,
+        attemptNumber: Int = 0,
+        accountsToRetry: Set<String>? = null,
+    ) {
+        var retryQueued = false
+        try {
+            if (attemptNumber == 0) {
+                val paymentCreated = paymentESService.create {
+                    it.create(paymentId, orderId, amount)
+                }
+                logger.trace("Payment {} for order {} created.", paymentCreated.paymentId, orderId)
+            }
+
+            if (System.currentTimeMillis() >= deadline) {
+                paymentESService.update(paymentId) {
+                    it.logProcessing(false, System.currentTimeMillis(), reason = "Deadline exceeded")
+                }
+                return
+            }
+
+            val retryAccounts = paymentService.submitPaymentRequest(
+                paymentId, amount, createdAt, deadline, attemptNumber, accountsToRetry,
+            )
+            if (retryAccounts.isNotEmpty()) {
+                paymentExecutor.submit {
+                    runPaymentAttempt(paymentId, orderId, amount, createdAt, deadline, attemptNumber + 1, retryAccounts)
+                }
+                retryQueued = true
+            }
+        } catch (e: Exception) {
+            logger.error("Payment {} attempt {} failed", paymentId, attemptNumber + 1, e)
+            runCatching {
+                paymentESService.update(paymentId) {
+                    it.logProcessing(false, System.currentTimeMillis(), reason = e.message ?: "Payment attempt failed")
+                }
+            }.onFailure {
+                logger.error("Failed to record payment failure for {}", paymentId, it)
+            }
+        } finally {
+            if (!retryQueued) paymentsInFlight.decrementAndGet()
+        }
     }
 }

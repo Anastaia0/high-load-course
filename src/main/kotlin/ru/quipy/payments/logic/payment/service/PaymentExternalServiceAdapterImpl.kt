@@ -10,7 +10,7 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody
 import org.slf4j.LoggerFactory
-import ru.quipy.common.utils.ratelimiter.implementation.SlidingWindowRateLimiter
+import ru.quipy.common.utils.ratelimiter.implementation.LeakingBucketRateLimiter
 import ru.quipy.common.utils.window.OngoingWindow
 import ru.quipy.core.EventSourcingService
 import ru.quipy.payments.api.PaymentAggregate
@@ -38,6 +38,7 @@ class PaymentExternalServiceAdapterImpl(
 
         private const val RATE_LIMIT_BACKOFF_MS = 200L
         private const val RETRY_BACKOFF_MS = 50L
+        private const val MAX_TEMPORARY_ERROR_RETRIES = 1
     }
 
     private val serviceName = properties.serviceName
@@ -46,9 +47,10 @@ class PaymentExternalServiceAdapterImpl(
     private val rateLimitPerSec = properties.rateLimitPerSec
     private val parallelRequests = properties.parallelRequests
 
-    private val rateLimiter = SlidingWindowRateLimiter(
+    private val rateLimiter = LeakingBucketRateLimiter(
         rate = rateLimitPerSec.toLong(),
         window = Duration.ofSeconds(1),
+        bucketSize = 1,
     )
 
     private val parallelWindow = OngoingWindow(parallelRequests)
@@ -106,6 +108,12 @@ class PaymentExternalServiceAdapterImpl(
         .description("Total number of failed attempts to acquire a rate limiter permit")
         .register(meterRegistry)
 
+    private val temporaryErrorRetryCounter: Counter = Counter.builder("payment_temporary_retry_total")
+        .tag("account", accountName)
+        .tag("service", serviceName)
+        .description("Total number of retries requested after a temporary provider error")
+        .register(meterRegistry)
+
     init {
         meterRegistry.gauge(
             "payment_parallel_window_queue_size",
@@ -130,10 +138,10 @@ class PaymentExternalServiceAdapterImpl(
     override fun isEnabled() = properties.enabled
     override fun price() = properties.price
 
-    override fun performPaymentAsync(paymentId: UUID, amount: Int, paymentStartedAt: Long, deadline: Long) {
-        incomingPaymentsCounter.increment()
+    override fun performPaymentAsync(paymentId: UUID,amount: Int,paymentStartedAt: Long,deadline: Long,attemptNumber: Int): Boolean {
+        if (attemptNumber == 0) incomingPaymentsCounter.increment()
 
-        logger.warn("[$accountName] Submitting payment request for payment $paymentId")
+        logger.warn("[$accountName] Submitting payment request for payment $paymentId (attempt=${attemptNumber + 1})")
 
         val transactionId = UUID.randomUUID()
 
@@ -158,7 +166,7 @@ class PaymentExternalServiceAdapterImpl(
                 paymentESService.update(paymentId) {
                     it.logProcessing(false, now(), transactionId, reason = reason)
                 }
-                return
+                return true
             }
 
             val permitWaitTimeout = Duration.ofMillis(remaining)
@@ -169,16 +177,20 @@ class PaymentExternalServiceAdapterImpl(
                 Thread.sleep(RETRY_BACKOFF_MS)
                 continue
             }
-            rateWaitCounter.increment()
-            if (!rateLimiter.tickBlocking(permitWaitTimeout)) {
-                logger.warn("[$accountName] Rate limit wait timeout for payment $paymentId, will retry")
-                rateTimeoutCounter.increment()
-                parallelWindow.release()
-                Thread.sleep(RETRY_BACKOFF_MS)
-                continue
-            }
 
             try {
+                val remainingForRateLimit = deadline - now()
+                if (remainingForRateLimit <= 0) continue
+
+                rateWaitCounter.increment()
+                if (!rateLimiter.tickBlocking(Duration.ofMillis(remainingForRateLimit))) {
+                    logger.warn("[$accountName] Rate limit wait timeout for payment $paymentId")
+                    rateTimeoutCounter.increment()
+                    continue
+                }
+
+                if (now() >= deadline) continue
+
                 outgoingRequestsCounter.increment()
                 httpClient.newCall(request).execute().use { response ->
                     val rawBody = response.body?.string()
@@ -196,14 +208,30 @@ class PaymentExternalServiceAdapterImpl(
                         paymentESService.update(paymentId) {
                             it.logProcessing(true, now(), transactionId, reason = providerResponse.message)
                         }
-                        return
-                    } else {
-                        lastFailureReason = providerResponse.message
-                        logger.warn("[$accountName] Payment returned false for txId: $transactionId, payment: $paymentId, message: ${providerResponse.message}. Will retry if time allows.")
-                        if (providerResponse.message?.contains("Rate limit", ignoreCase = true) == true) {
-                            Thread.sleep(RATE_LIMIT_BACKOFF_MS)
-                        }
+                        return true
                     }
+
+                    val failureReason = providerResponse.message
+                    lastFailureReason = failureReason
+                    if (failureReason?.contains("Rate limit", ignoreCase = true) == true) {
+                        logger.warn("[$accountName] Rate limit for payment $paymentId: $failureReason")
+                        Thread.sleep(RATE_LIMIT_BACKOFF_MS)
+                        return@use
+                    }
+
+                    if (failureReason?.contains("Temporary error", ignoreCase = true) == true &&
+                        attemptNumber < MAX_TEMPORARY_ERROR_RETRIES && now() < deadline
+                    ) {
+                        temporaryErrorRetryCounter.increment()
+                        logger.warn("[$accountName] Temporary error for payment $paymentId: $failureReason. Requesting retry.")
+                        return false
+                    }
+
+                    logger.warn("[$accountName] Payment $paymentId failed: $failureReason")
+                    paymentESService.update(paymentId) {
+                        it.logProcessing(false, now(), transactionId, reason = failureReason)
+                    }
+                    return true
                 }
             } catch (e: Exception) {
                 when (e) {

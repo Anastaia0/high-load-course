@@ -6,7 +6,7 @@ interface PaymentService {
     /**
      * Submit payment request to some external service.
      */
-    fun submitPaymentRequest(paymentId: UUID, amount: Int, paymentStartedAt: Long, deadline: Long)
+    fun submitPaymentRequest(paymentId: UUID, amount: Int, paymentStartedAt: Long, deadline: Long, attemptNumber: Int = 0, accountsToRetry: Set<String>? = null): Set<String>
 
     fun totalThroughputPerMs(): Double
     fun averageProcessingTimeMs(): Long
