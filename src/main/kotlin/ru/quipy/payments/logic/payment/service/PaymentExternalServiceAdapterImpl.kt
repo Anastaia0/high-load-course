@@ -38,7 +38,7 @@ class PaymentExternalServiceAdapterImpl(
 
         private const val RATE_LIMIT_BACKOFF_MS = 200L
         private const val RETRY_BACKOFF_MS = 50L
-        private const val MAX_TEMPORARY_ERROR_RETRIES = 1
+        private const val MAX_TEMPORARY_ERROR_RETRIES = 3
     }
 
     private val serviceName = properties.serviceName
