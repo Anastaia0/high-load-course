@@ -13,16 +13,13 @@
     },
     "annotations": {
       "grafana.app/createdBy": "access-policy:service",
-      "grafana.app/folder": "bfyy2vqe5ue4gb",
       "grafana.app/managedBy": "classic-file-provisioning",
       "grafana.app/managerId": "Default",
       "grafana.app/sourceChecksum": "95da543fdb023c57c48ea0f752cb484d",
       "grafana.app/sourcePath": "/etc/grafana/provisioning/dashboards/ServicesStatistic.json",
       "grafana.app/sourceTimestamp": "1791335264000",
       "grafana.app/updatedBy": "access-policy:service",
-      "grafana.app/updatedTimestamp": "2026-10-07T01:07:47Z",
-      "grafana.app/folderTitle": "bombardier",
-      "grafana.app/folderUrl": "/dashboards/f/bfyy2vqe5ue4gb/bombardier"
+      "grafana.app/updatedTimestamp": "2026-10-07T01:07:47Z"
     }
   },
   "spec": {
@@ -911,6 +908,133 @@
                   "sort": "none"
                 }
               }
+            },
+            "version": "13.2.2"
+          }
+        }
+      },
+      "panel-106": {
+        "kind": "Panel",
+        "spec": {
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "hidden": false,
+                    "query": {
+                      "datasource": {
+                        "name": "PBFA97CFB590B2093"
+                      },
+                      "group": "prometheus",
+                      "kind": "DataQuery",
+                      "spec": {
+                        "editorMode": "code",
+                        "expr": "sum by (account) (rate(payment_timeout_retry_total{service=~\"$service\"}[1m]))",
+                        "legendFormat": "{{account}} - timeout",
+                        "range": true
+                      },
+                      "version": "v0"
+                    },
+                    "refId": "A"
+                  }
+                },
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "hidden": false,
+                    "query": {
+                      "datasource": {
+                        "name": "PBFA97CFB590B2093"
+                      },
+                      "group": "prometheus",
+                      "kind": "DataQuery",
+                      "spec": {
+                        "editorMode": "code",
+                        "expr": "sum by (account) (rate(payment_temporary_retry_total{service=~\"$service\"}[1m]))",
+                        "legendFormat": "{{account}} - temporary error",
+                        "range": true
+                      },
+                      "version": "v0"
+                    },
+                    "refId": "B"
+                  }
+                }
+              ],
+              "queryOptions": {},
+              "transformations": []
+            }
+          },
+          "description": "",
+          "id": 106,
+          "links": [],
+          "title": "Provider retries per second",
+          "vizConfig": {
+            "group": "timeseries",
+            "kind": "VizConfig",
+            "spec": {
+              "fieldConfig": {
+                "defaults": {
+                  "unit": "ops"
+                },
+                "overrides": []
+              },
+              "options": {}
+            },
+            "version": "13.2.2"
+          }
+        }
+      },
+      "panel-107": {
+        "kind": "Panel",
+        "spec": {
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "hidden": false,
+                    "query": {
+                      "datasource": {
+                        "name": "PBFA97CFB590B2093"
+                      },
+                      "group": "prometheus",
+                      "kind": "DataQuery",
+                      "spec": {
+                        "editorMode": "code",
+                        "expr": "payment_provider_call_duration_seconds{service=~\"$service\",quantile!=\"\"}",
+                        "legendFormat": "{{account}} - q{{quantile}}",
+                        "range": true
+                      },
+                      "version": "v0"
+                    },
+                    "refId": "A"
+                  }
+                }
+              ],
+              "queryOptions": {},
+              "transformations": []
+            }
+          },
+          "description": "",
+          "id": 107,
+          "links": [],
+          "title": "Provider call duration",
+          "vizConfig": {
+            "group": "timeseries",
+            "kind": "VizConfig",
+            "spec": {
+              "fieldConfig": {
+                "defaults": {
+                  "unit": "s"
+                },
+                "overrides": []
+              },
+              "options": {}
             },
             "version": "13.2.2"
           }
@@ -5281,6 +5405,41 @@
                 }
               },
               "title": "Custom metrics (added by cap-m3400-02 team)"
+            }
+          },
+          {
+            "kind": "RowsLayoutRow",
+            "spec": {
+              "collapse": false,
+              "layout": {
+                "kind": "AutoGridLayout",
+                "spec": {
+                  "columnWidthMode": "standard",
+                  "items": [
+                    {
+                      "kind": "AutoGridLayoutItem",
+                      "spec": {
+                        "element": {
+                          "kind": "ElementReference",
+                          "name": "panel-106"
+                        }
+                      }
+                    },
+                    {
+                      "kind": "AutoGridLayoutItem",
+                      "spec": {
+                        "element": {
+                          "kind": "ElementReference",
+                          "name": "panel-107"
+                        }
+                      }
+                    }
+                  ],
+                  "maxColumnCount": 2,
+                  "rowHeightMode": "standard"
+                }
+              },
+              "title": "Payment provider"
             }
           }
         ]
